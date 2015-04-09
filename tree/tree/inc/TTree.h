@@ -66,6 +66,14 @@
 #include "TVirtualTreePlayer.h"
 #endif
 
+#ifndef __TBB_task_scheduler_init_
+#include "tbb/task_scheduler_init.h"
+#endif
+
+#ifndef __TBB_task_group_H
+#include "tbb/task_group.h"
+#endif
+
 class TBranch;
 class TBrowser;
 class TFile;
@@ -117,7 +125,7 @@ protected:
    Long64_t       fCacheSize;         //! Maximum size of file buffers
    Long64_t       fChainOffset;       //! Offset of 1st entry of this Tree in a TChain
    Long64_t       fReadEntry;         //! Number of the entry being processed
-   Long64_t       fTotalBuffers;      //! Total number of bytes in branch buffers
+   std::atomic<Long64_t> fTotalBuffers;      //! Total number of bytes in branch buffers
    Int_t          fPacketSize;        //! Number of entries in one packet for parallel root
    Int_t          fNfill;             //! Local for EntryLoop
    Int_t          fDebug;             //! Debug level
@@ -145,6 +153,8 @@ protected:
    TBuffer       *fTransientBuffer;   //! Pointer to the current transient buffer.
    Bool_t         fCacheDoAutoInit;   //! true if cache auto creation or resize check is needed
    Bool_t         fCacheUserSet;      //! true if the cache setting was explicitly given by user
+   tbb::task_scheduler_init *fSchedInit; //! TBB scheduler initializer
+   tbb::task_group *fTaskGroup;		  //! Group for parallel TBB subtasks created in the I/O of this tree
 
    static Int_t     fgBranchStyle;      //  Old/New branch style
    static Long64_t  fgMaxTreeSize;      //  Maximum size of a file containg a Tree

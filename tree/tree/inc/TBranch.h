@@ -187,6 +187,7 @@ public:
    TBranch          *GetSubBranch(const TBranch *br) const;
    Bool_t            IsAutoDelete() const;
    Bool_t            IsFolder() const;
+   Bool_t            IsThere(Long64_t entry) const;
    virtual void      KeepCircular(Long64_t maxEntries);
    virtual Int_t     LoadBaskets();
    virtual void      Print(Option_t *option="") const;

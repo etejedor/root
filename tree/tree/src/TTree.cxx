@@ -367,6 +367,7 @@
 #include "TBranchSTL.h"
 #include "TSchemaRuleSet.h"
 #include "TFileMergeInfo.h"
+#include "TThread.h"
 
 #include <cstddef>
 #include <fstream>
@@ -374,6 +375,10 @@
 #include <string>
 #include <stdio.h>
 #include <limits.h>
+//#include <thread>
+
+//#include "tbb/parallel_for.h"
+//#include "tbb/task_group.h"
 
 Int_t    TTree::fgBranchStyle = 1;  // Use new TBranch style with TBranchElement.
 Long64_t TTree::fgMaxTreeSize = 100000000000LL;
@@ -658,6 +663,7 @@ TTree::TTree()
 , fTransientBuffer(0)
 , fCacheDoAutoInit(kTRUE)
 , fCacheUserSet(kFALSE)
+, fTaskGroup(0)
 {
    // Default constructor and I/O constructor.
    //
@@ -671,6 +677,9 @@ TTree::TTree()
    fMaxEntryLoop *= 1000;
 
    fBranches.SetOwner(kTRUE);
+
+   fSchedInit = new tbb::task_scheduler_init(2);
+   fTaskGroup = new tbb::task_group();
 }
 
 //______________________________________________________________________________
@@ -730,6 +739,7 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
 , fTransientBuffer(0)
 , fCacheDoAutoInit(kTRUE)
 , fCacheUserSet(kFALSE)
+, fTaskGroup(0)
 {
    // Normal tree constructor.
    //
@@ -777,6 +787,9 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
          Branch(title+1,32000,splitlevel);
       }
    }
+
+   fSchedInit = new tbb::task_scheduler_init(2);
+   fTaskGroup = new tbb::task_group();
 }
 
 //______________________________________________________________________________
@@ -866,6 +879,9 @@ TTree::~TTree()
       delete fTransientBuffer;
       fTransientBuffer = 0;
    }
+
+   delete fSchedInit;
+   delete fTaskGroup;
 }
 
 //______________________________________________________________________________
@@ -5049,21 +5065,84 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
 
    if (entry < 0 || entry >= fEntries) return 0;
    Int_t i;
-   Int_t nbytes = 0;
    fReadEntry = entry;
-   TBranch *branch;
 
    // create cache if wanted
    if (fCacheDoAutoInit) SetCacheSizeAux();
 
    Int_t nbranches = fBranches.GetEntriesFast();
    Int_t nb=0;
+
+   // SEQUENTIAL
+   /*TBranch *branch;
+   Int_t nbytes = 0;
    for (i=0;i<nbranches;i++)  {
       branch = (TBranch*)fBranches.UncheckedAt(i);
       nb = branch->GetEntry(entry, getall);
       if (nb < 0) return nb;
       nbytes += nb;
+   }*/
+
+   // THREADS
+   /*std::atomic<Int_t> nbytes;
+   std::vector<std::thread> threads;
+   Int_t err_nb = 0;
+   for (i=0;i<nbranches;i++)  {
+      threads.emplace_back([&, i]() {
+    	 //thread_local TThread s_thread_guard;
+         Int_t nb=0;
+         TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
+         nb = branch->GetEntry(entry, getall);
+         if (nb < 0) err_nb = nb;
+         else        nbytes += nb;
+      });
+      //if (i == 1) break;
    }
+   for(auto& thread: threads) {
+      thread.join();
+   }
+   if (err_nb < 0) return err_nb;*/
+
+   // TBB PARALLEL FOR
+   /*std::atomic<Int_t> nbytes;
+   Int_t err_nb = 0;
+   tbb::parallel_for(0, nbranches,
+		            [&](int i) {
+	   	   	   	       Int_t nb=0;
+	   	   	   	       TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
+	   	   	   	       nb = branch->GetEntry(entry, getall);
+	   	   	   	       if (nb < 0) err_nb = nb;
+	   	   	   	       else        nbytes += nb;
+                    }
+   );
+   if (err_nb < 0) return err_nb;*/
+
+   // TBB TASKS with check
+   std::atomic<Int_t> nbytes;
+   Int_t err_nb = 0;
+   for (i=0;i<nbranches;i++)  {
+	   //printf("Processing branch %d\n", i);
+	   TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
+
+	   auto f = [&, i, branch]() {
+  	   	       Int_t nb=0;
+  	   	       nb = branch->GetEntry(entry, getall);
+  	   	       if (nb < 0) err_nb = nb;
+  	   	       else        nbytes += nb;
+       };
+
+	   if (branch->IsThere(entry)) {
+		   //printf("Entry %d for branch %d is there\n", entry, i);
+		   f();
+	   }
+	   else {
+		   //printf("TASK!! Entry %d for branch %d is not there\n", entry, i);
+		   fTaskGroup->run(f);
+	   }
+   }
+   fTaskGroup->wait();
+   if (err_nb < 0) return err_nb;
+
 
    // GetEntry in list of friends
    if (!fFriends) return nbytes;
@@ -6992,7 +7071,7 @@ void TTree::Refresh()
    fTotBytes = tree->fTotBytes;
    fZipBytes = tree->fZipBytes;
    fSavedBytes = tree->fSavedBytes;
-   fTotalBuffers = tree->fTotalBuffers;
+   fTotalBuffers = tree->fTotalBuffers.load();
 
    //loop on all branches and update them
    Int_t nleaves = fLeaves.GetEntriesFast();
