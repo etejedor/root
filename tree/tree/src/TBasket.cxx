@@ -19,6 +19,9 @@
 #include "TVirtualPerfStats.h"
 #include "TTimeStamp.h"
 #include "RZip.h"
+#include "TROOT.h"
+#include "TVirtualMutex.h"
+
 
 // TODO: Copied from TBranch.cxx
 #if (__GNUC__ >= 3) || defined(__INTEL_COMPILER)
@@ -101,12 +104,12 @@ TBasket::TBasket(const char *name, const char *title, TBranch *branch) :
    fHeaderOnly  = kTRUE;
    fLast        = 0; // Must initialize before calling Streamer()
    if (branch->GetTree()) {
-      fCompressedBufferRef = branch->GetTree()->GetTransientBuffer(fBufferSize);
-      fOwnsCompressedBuffer = kFALSE;
-      if (!fCompressedBufferRef) {
+      //fCompressedBufferRef = branch->GetTree()->GetTransientBuffer(fBufferSize);
+      //fOwnsCompressedBuffer = kFALSE;
+      //if (!fCompressedBufferRef) {
          fCompressedBufferRef = new TBufferFile(TBuffer::kRead, fBufferSize);
          fOwnsCompressedBuffer = kTRUE;
-      }
+      //}
    }
    Streamer(*fBufferRef);
    fKeylen      = fBufferRef->Length();
@@ -440,7 +443,11 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
    Int_t uncompressedBufferLen;
 
    // See if the cache has already unzipped the buffer for us.
-   TFileCacheRead *pf = file->GetCacheRead(fBranch->GetTree());
+   TFileCacheRead *pf;
+   {
+      R__LOCKGUARD2(gROOTMutex);
+      pf = file->GetCacheRead(fBranch->GetTree());
+   }
    if (pf) {
       Int_t res = -1;
       Bool_t free = kTRUE;
@@ -478,13 +485,18 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
    if (pf) {
       TVirtualPerfStats* temp = gPerfStats;
       if (fBranch->GetTree()->GetPerfStats() != 0) gPerfStats = fBranch->GetTree()->GetPerfStats();
-      Int_t st = pf->ReadBuffer(readBufferRef->Buffer(),pos,len);
+      Int_t st;
+      {
+         R__LOCKGUARD2(gROOTMutex);
+         st = pf->ReadBuffer(readBufferRef->Buffer(),pos,len);
+      }
       if (st < 0) {
          return 1;
       } else if (st == 0) {
          // Read directly from file, not from the cache
          // If we are using a TTreeCache, disable reading from the default cache
          // temporarily, to force reading directly from file
+    	 R__LOCKGUARD2(gROOTMutex);
          TTreeCache *fc = dynamic_cast<TTreeCache*>(file->GetCacheRead());
          if (fc) fc->Disable();
          Int_t ret = file->ReadBuffer(readBufferRef->Buffer(),pos,len);
@@ -500,12 +512,14 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
       // Read from the file and unstream the header information.
       TVirtualPerfStats* temp = gPerfStats;
       if (fBranch->GetTree()->GetPerfStats() != 0) gPerfStats = fBranch->GetTree()->GetPerfStats();
+      R__LOCKGUARD2(gROOTMutex);
       if (file->ReadBuffer(readBufferRef->Buffer(),pos,len)) {
          gPerfStats = temp;
          return 1;
       }
       else gPerfStats = temp;
    }
+
    Streamer(*readBufferRef);
    if (IsZombie()) {
       return 1;
@@ -593,6 +607,7 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
       TVirtualPerfStats* temp = gPerfStats;
       if (fBranch->GetTree()->GetPerfStats() != 0) gPerfStats = fBranch->GetTree()->GetPerfStats();
       if (R__unlikely(gPerfStats)) {
+    	 R__LOCKGUARD2(gROOTMutex);
          gPerfStats->UnzipEvent(fBranch->GetTree(),pos,start,nintot,fObjlen);
       }
       gPerfStats = temp;

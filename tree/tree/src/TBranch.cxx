@@ -672,8 +672,8 @@ void TBranch::DropBaskets(Option_t* options)
          Int_t i = fBaskets.GetLast();
          basket = (TBasket*)fBaskets.UncheckedAt(i);
          if (basket && fBasketBytes[i]!=0) {
-            basket->DropBuffers();
-            if (basket == fCurrentBasket) {
+        	basket->DropBuffers();
+        	if (basket == fCurrentBasket) {
                fCurrentBasket    = 0;
                fFirstBasketEntry = -1;
                fNextBasketEntry  = -1;
@@ -1099,6 +1099,7 @@ TBasket* TBranch::GetBasket(Int_t basketnumber)
    if (file == 0) {
       return 0;
    }
+
    basket = GetFreshBasket();
 
    // fSkipZip is old stuff still maintained for CDF
@@ -1107,10 +1108,13 @@ TBasket* TBranch::GetBasket(Int_t basketnumber)
       fBasketBytes[basketnumber] = basket->ReadBasketBytes(fBasketSeek[basketnumber],file);
    }
    //add branch to cache (if any)
-   TFileCacheRead *pf = file->GetCacheRead(fTree);
-   if (pf){
-      if (pf->IsLearning()) pf->AddBranch(this);
-      if (fSkipZip) pf->SetSkipZip();
+   {
+	  R__LOCKGUARD2(gROOTMutex);
+      TFileCacheRead *pf = file->GetCacheRead(fTree);
+      if (pf){
+         if (pf->IsLearning()) pf->AddBranch(this);
+         if (fSkipZip) pf->SetSkipZip();
+      }
    }
 
    //now read basket
@@ -1248,6 +1252,7 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
       }
       fCurrentBasket = basket;
    }
+
    basket->PrepareBasket(entry);
    TBuffer* buf = basket->GetBufferRef();
 
@@ -1283,6 +1288,7 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
    (this->*fReadLeaves)(*buf);
    return buf->Length() - bufbegin;
 }
+
 
 //______________________________________________________________________________
 Int_t TBranch::GetEntryExport(Long64_t entry, Int_t /*getall*/, TClonesArray* li, Int_t nentries)
@@ -1662,6 +1668,16 @@ Bool_t TBranch::IsFolder() const
    }
    TList* browsables = const_cast<TBranch*>(this)->GetBrowsables();
    return browsables && browsables->GetSize();
+}
+
+//______________________________________________________________________________
+Bool_t TBranch::IsThere(Long64_t entry) const
+{
+   if (R__likely(fFirstBasketEntry <= entry && entry < fNextBasketEntry))
+	   return true;
+
+   Long_t index = TMath::BinarySearch(fWriteBasket + 1, fBasketEntry, entry);
+   return fBaskets.UncheckedAt(index) != nullptr;
 }
 
 //______________________________________________________________________________
