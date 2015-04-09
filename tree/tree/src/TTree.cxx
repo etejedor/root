@@ -380,10 +380,6 @@
 #include "tbb/parallel_for.h"
 //#include "tbb/task_group.h"
 
-#include <sys/time.h>
-struct timeval stop, start;
-Double_t exec_time;
-
 Int_t    TTree::fgBranchStyle = 1;  // Use new TBranch style with TBranchElement.
 Long64_t TTree::fgMaxTreeSize = 100000000000LL;
 
@@ -5114,6 +5110,7 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
    Int_t err_nb = 0;
    tbb::parallel_for(0, nbranches,
 		            [&](int i) {
+                                       thread_local TThread thread_guard;
 	   	   	   	       Int_t nb=0;
 	   	   	   	       TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
 	   	   	   	       nb = branch->GetEntry(entry, getall);
