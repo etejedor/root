@@ -380,6 +380,10 @@
 #include "tbb/parallel_for.h"
 //#include "tbb/task_group.h"
 
+#include <sys/time.h>
+struct timeval stop, start;
+Double_t exec_time;
+
 Int_t    TTree::fgBranchStyle = 1;  // Use new TBranch style with TBranchElement.
 Long64_t TTree::fgMaxTreeSize = 100000000000LL;
 
