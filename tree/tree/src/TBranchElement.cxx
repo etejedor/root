@@ -2267,6 +2267,7 @@ Int_t TBranchElement::GetEntry(Long64_t entry, Int_t getall)
    // proper branch.
    TBranchRef* bref = fTree->GetBranchRef();
    if (R__unlikely(bref)) {
+	  R__LOCKGUARD2(gROOTMutex);
       fBranchID = bref->SetParent(this, fBranchID);
       bref->SetRequestedEntry(entry);
    }
@@ -2278,7 +2279,8 @@ Int_t TBranchElement::GetEntry(Long64_t entry, Int_t getall)
       SetAddress(fAddress);
    } else {
       if (R__unlikely(!fAddress && !fTree->GetMakeClass())) {
-         SetupAddressesImpl();
+    	 R__LOCKGUARD2(gROOTMutex);
+    	 SetupAddressesImpl();
       }
    }
 
