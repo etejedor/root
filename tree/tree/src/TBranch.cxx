@@ -44,6 +44,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <thread>
+
 Int_t TBranch::fgCount = 0;
 
 #if (__GNUC__ >= 3) || defined(__INTEL_COMPILER)
@@ -1107,10 +1109,11 @@ TBasket* TBranch::GetBasket(Int_t basketnumber)
    if (fBasketBytes[basketnumber] == 0) {
       fBasketBytes[basketnumber] = basket->ReadBasketBytes(fBasketSeek[basketnumber],file);
    }
+
    //add branch to cache (if any)
    {
 	  R__LOCKGUARD2(gROOTMutex);
-      TFileCacheRead *pf = file->GetCacheRead(fTree);
+	  TFileCacheRead *pf = file->GetCacheRead(fTree);
       if (pf){
          if (pf->IsLearning()) pf->AddBranch(this);
          if (fSkipZip) pf->SetSkipZip();
@@ -1207,12 +1210,13 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
    fReadEntry = entry;
 
    Bool_t enabled = !TestBit(kDoNotProcess) || getall;
-   TBasket *basket; // will be initialized in the if/then clauses.
+   TBasket *basket;// = nullptr; // will be initialized in the if/then clauses.
    Long64_t first;
    if (R__likely(enabled && fFirstBasketEntry <= entry && entry < fNextBasketEntry)) {
       // We have found the basket containing this entry.
       // make sure basket buffers are in memory.
       basket = fCurrentBasket;
+      //if (fCurrentBasket == nullptr) printf("FCURRENT BASKET ERROR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n\n");
       first = fFirstBasketEntry;
    } else {
       if (!enabled) {
@@ -1238,11 +1242,12 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
          }
          first = fFirstBasketEntry = fBasketEntry[fReadBasket];
       }
+
       // We have found the basket containing this entry.
       // make sure basket buffers are in memory.
       basket = (TBasket*) fBaskets.UncheckedAt(fReadBasket);
       if (!basket) {
-         basket = GetBasket(fReadBasket);
+    	 basket = GetBasket(fReadBasket);
          if (!basket) {
             fCurrentBasket = 0;
             fFirstBasketEntry = -1;
@@ -1258,7 +1263,7 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
 
    // This test necessary to read very old Root files (NvE).
    if (R__unlikely(!buf)) {
-      TFile* file = GetFile(0);
+	  TFile* file = GetFile(0);
       if (!file) return -1;
       basket->ReadBasketBuffers(fBasketSeek[fReadBasket], fBasketBytes[fReadBasket], file);
       buf = basket->GetBufferRef();

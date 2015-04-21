@@ -443,7 +443,7 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
    Int_t uncompressedBufferLen;
 
    // See if the cache has already unzipped the buffer for us.
-   TFileCacheRead *pf;
+   TFileCacheRead *pf = nullptr;
    {
       R__LOCKGUARD2(gROOTMutex);
       pf = file->GetCacheRead(fBranch->GetTree());
@@ -485,7 +485,7 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
    if (pf) {
       TVirtualPerfStats* temp = gPerfStats;
       if (fBranch->GetTree()->GetPerfStats() != 0) gPerfStats = fBranch->GetTree()->GetPerfStats();
-      Int_t st;
+      Int_t st = 0;
       {
          R__LOCKGUARD2(gROOTMutex);
          st = pf->ReadBuffer(readBufferRef->Buffer(),pos,len);

@@ -39,6 +39,7 @@
 #include "TInterpreter.h"
 #include "TVirtualMutex.h"
 #include "TArrayC.h"
+#include "TROOT.h"
 
 #if (defined(__linux) || defined(__APPLE__)) && defined(__i386__) && \
      defined(__GNUC__)
@@ -3575,7 +3576,14 @@ TProcessID *TBufferFile::ReadProcessID(UShort_t pidf)
       if (!pidf) return TProcessID::GetPID(); //may happen when cloning an object
       return 0;
    }
-   return file->ReadProcessID(pidf);
+
+   TProcessID *pid = nullptr;
+   {
+      R__LOCKGUARD2(gROOTMutex);
+      pid = file->ReadProcessID(pidf);
+   }
+
+   return pid;
 }
 
 //______________________________________________________________________________
