@@ -377,8 +377,12 @@
 #include <limits.h>
 //#include <thread>
 
-//#include "tbb/parallel_for.h"
+#include "tbb/parallel_for.h"
 //#include "tbb/task_group.h"
+
+#include <sys/time.h>
+struct timeval stop, start;
+Double_t exec_time;
 
 Int_t    TTree::fgBranchStyle = 1;  // Use new TBranch style with TBranchElement.
 Long64_t TTree::fgMaxTreeSize = 100000000000LL;
@@ -678,7 +682,7 @@ TTree::TTree()
 
    fBranches.SetOwner(kTRUE);
 
-   fSchedInit = new tbb::task_scheduler_init(2);
+   fSchedInit = new tbb::task_scheduler_init(4);
    fTaskGroup = new tbb::task_group();
 }
 
@@ -5104,7 +5108,7 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
    if (err_nb < 0) return err_nb;*/
 
    // TBB PARALLEL FOR
-   /*std::atomic<Int_t> nbytes;
+   std::atomic<Int_t> nbytes;
    Int_t err_nb = 0;
    tbb::parallel_for(0, nbranches,
 		            [&](int i) {
@@ -5115,10 +5119,26 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
 	   	   	   	       else        nbytes += nb;
                     }
    );
+   if (err_nb < 0) return err_nb;
+
+   // TBB TASKS
+   /*std::atomic<Int_t> nbytes;
+   Int_t err_nb = 0;
+   for (i=0;i<nbranches;i++)  {
+	   fTaskGroup->run([&, i]() {
+  	   	       	   	   	   Int_t nb=0;
+  	   	       	   	   	   TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
+  	   	       	   	   	   nb = branch->GetEntry(entry, getall);
+  	   	       	   	   	   if (nb < 0) err_nb = nb;
+  	   	       	   	   	   else        nbytes += nb;
+         	 	 	   }
+	   );
+   }
+   fTaskGroup->wait();
    if (err_nb < 0) return err_nb;*/
 
    // TBB TASKS with check
-   std::atomic<Int_t> nbytes;
+   /*std::atomic<Int_t> nbytes;
    Int_t err_nb = 0;
    for (i=0;i<nbranches;i++)  {
 	   //printf("Processing branch %d\n", i);
@@ -5141,7 +5161,7 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
 	   }
    }
    fTaskGroup->wait();
-   if (err_nb < 0) return err_nb;
+   if (err_nb < 0) return err_nb;*/
 
 
    // GetEntry in list of friends

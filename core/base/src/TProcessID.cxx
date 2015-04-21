@@ -331,6 +331,8 @@ void TProcessID::PutObjectWithID(TObject *obj, UInt_t uid)
    //stores the object at the uid th slot in the table of objects
    //The object uniqueid is set as well as its kMustCleanup bit
 
+   R__LOCKGUARD2(gROOTMutex);
+
    if (uid == 0) uid = obj->GetUniqueID() & 0xffffff;
 
    if (!fObjects) fObjects = new TObjArray(100);
