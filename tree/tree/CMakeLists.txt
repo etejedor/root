@@ -15,12 +15,14 @@ ROOT_USE_PACKAGE(hist/hist)
 ROOT_GENERATE_DICTIONARY(G__${libname} *.h MODULE ${libname} LINKDEF LinkDef.h OPTIONS "-writeEmptyRootPCM")
 #ROOT_GENERATE_DICTIONARY(ManualTree TTree.h  LINKDEF LinkDef2.h)
 
-INCLUDE_DIRECTORIES($ENV{INTEL_TBB}/include/)
-FIND_LIBRARY(LIBTBB tbb HINTS $ENV{INTEL_TBB}/lib/intel64/gcc4.4/)
-if(NOT LIBTBB)
-  message(FATAL_ERROR "Library tbb not found")
+INCLUDE_DIRECTORIES($ENV{EXTRAE_HOME}/include/)
+FIND_LIBRARY(LIBEXTRAE nanostrace HINTS $ENV{EXTRAE_HOME}/lib/)
+if(NOT LIBEXTRAE)
+  message(FATAL_ERROR "Library nanostrace not found")
 endif()
 
-ROOT_LINKER_LIBRARY(${libname} *.cxx G__${libname}.cxx DEPENDENCIES Net RIO Thread ${LIBTBB})
+INCLUDE_DIRECTORIES(${TBB_INCLUDE_DIRS})
+
+ROOT_LINKER_LIBRARY(${libname} *.cxx G__${libname}.cxx LIBRARIES ${TBB_LIBRARY_RELEASE} ${LIBEXTRAE} DEPENDENCIES Net RIO Thread)
 ROOT_INSTALL_HEADERS()
 

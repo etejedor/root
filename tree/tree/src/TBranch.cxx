@@ -1210,13 +1210,12 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
    fReadEntry = entry;
 
    Bool_t enabled = !TestBit(kDoNotProcess) || getall;
-   TBasket *basket;// = nullptr; // will be initialized in the if/then clauses.
+   TBasket *basket; // will be initialized in the if/then clauses.
    Long64_t first;
    if (R__likely(enabled && fFirstBasketEntry <= entry && entry < fNextBasketEntry)) {
       // We have found the basket containing this entry.
       // make sure basket buffers are in memory.
       basket = fCurrentBasket;
-      //if (fCurrentBasket == nullptr) printf("FCURRENT BASKET ERROR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n\n");
       first = fFirstBasketEntry;
    } else {
       if (!enabled) {
