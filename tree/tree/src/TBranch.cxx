@@ -38,6 +38,7 @@
 #include "TTreeCacheUnzip.h"
 #include "TVirtualMutex.h"
 #include "TVirtualPad.h"
+#include "TExtraeInstrumenter.h"
 
 #include <atomic>
 #include <cstddef>
@@ -1289,7 +1290,9 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
    }
 
    // Int_t bufbegin = buf->Length();
+   R__EXTRAE_EVENT(DESERIALIZE, START_GENERIC);
    (this->*fReadLeaves)(*buf);
+   R__EXTRAE_EVENT(DESERIALIZE, END_GENERIC);
    return buf->Length() - bufbegin;
 }
 

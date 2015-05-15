@@ -47,6 +47,9 @@ endif()
 add_subdirectory(zip)
 add_subdirectory(lzma)
 add_subdirectory(base)
+#if (extrae)
+add_subdirectory(instrument)
+#endif()
 
 set(objectlibs $<TARGET_OBJECTS:Base>
                $<TARGET_OBJECTS:Clib>
@@ -112,7 +115,9 @@ ROOT_LINKER_LIBRARY(Core
                     $<TARGET_OBJECTS:BaseTROOT>
                     ${objectlibs}
                     LIBRARIES ${PCRE_LIBRARIES} ${LZMA_LIBRARIES} ${ZLIB_LIBRARY}
-                              ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT} ${corelinklibs} )
+                              ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT} ${corelinklibs} DEPENDENCIES ExtraeInstrumenter)
+
+#add_dependencies(Core ExtraeInstrumenter)
 
 if(cling)
   add_dependencies(Core CLING)
