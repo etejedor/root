@@ -26,6 +26,10 @@
 #include "TObject.h"
 #endif
 
+#ifndef ROOT_TEXTRAEINSTRUMENTER
+#include "TExtraeInstrumenter.h"
+#endif
+
 class TVirtualMutex;
 
 // Global mutex set in TThread::Init
@@ -75,15 +79,22 @@ private:
    TLockGuard& operator=(const TLockGuard&);  // not implemented
 
 public:
-   TLockGuard(TVirtualMutex *mutex)
-     : fMutex(mutex) { if (fMutex) fMutex->Lock(); }
+   TLockGuard(TVirtualMutex *mutex) : fMutex(mutex) {
+	   R__EXTRAE_EVENT(LOCK, ACQUIRE);
+	   if (fMutex) fMutex->Lock();
+	   R__EXTRAE_EVENT(LOCK, END_GENERIC);
+   }
    Int_t UnLock() {
       if (!fMutex) return 0;
       auto tmp = fMutex;
       fMutex = 0;
       return tmp->UnLock();
    }
-   ~TLockGuard() { if (fMutex) fMutex->UnLock(); }
+   ~TLockGuard() {
+	   R__EXTRAE_EVENT(LOCK, RELEASE);
+	   if (fMutex) fMutex->UnLock();
+	   R__EXTRAE_EVENT(LOCK, END_GENERIC);
+   }
 
    ClassDefNV(TLockGuard,0)  // Exception safe locking/unlocking of mutex
 };

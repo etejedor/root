@@ -368,6 +368,7 @@
 #include "TSchemaRuleSet.h"
 #include "TFileMergeInfo.h"
 #include "TThread.h"
+#include "TExtraeInstrumenter.h"
 
 #include <cstddef>
 #include <fstream>
@@ -379,29 +380,6 @@
 
 #include "tbb/parallel_for.h"
 //#include "tbb/task_group.h"
-#define NUM_TBB_THREADS 8 
-
-#define EXTRAE
-
-#ifdef EXTRAE
-#include "extrae_user_events.h"
-#define PBP_TASK_EID 8000000
-#define EVENT_START 1
-#define EVENT_END   0
-#define EVENT_NVAL  2
-
-static std::atomic<unsigned int> curr_thid = {0};
-
-static unsigned int get_thread_id(void)
-{
-	thread_local unsigned int thid = curr_thid.fetch_add(1);
-	return thid;
-}
-
-static unsigned int get_num_threads(void)
-{ return NUM_TBB_THREADS; }
-
-#endif
 
 #include <sys/time.h>
 struct timeval stop, start;
@@ -705,20 +683,9 @@ TTree::TTree()
 
    fBranches.SetOwner(kTRUE);
 
-   fSchedInit = new tbb::task_scheduler_init(NUM_TBB_THREADS);
+   fSchedInit = new tbb::task_scheduler_init(NUM_THREADS);
    fTaskGroup = new tbb::task_group();
-
-#ifdef EXTRAE
-   Extrae_set_threadid_function(get_thread_id);
-   Extrae_set_numthreads_function(get_num_threads);
-   Extrae_init();
-   extrae_type_t t = PBP_TASK_EID;
-   extrae_value_t values[EVENT_NVAL] = {EVENT_START, EVENT_END};
-   unsigned nvalues = EVENT_NVAL;
-   const char *v1 ="Running", *v2 = "End", *descr = "PBP Task";
-   const char *descr_values[EVENT_NVAL] = {v1, v2};
-   Extrae_define_event_type(&t, (char*)descr, &nvalues, values, (char**)descr_values);
-#endif
+   R__EXTRAE_INIT();
 }
 
 //______________________________________________________________________________
@@ -827,7 +794,7 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
       }
    }
 
-   fSchedInit = new tbb::task_scheduler_init(NUM_TBB_THREADS);
+   fSchedInit = new tbb::task_scheduler_init(NUM_THREADS);
    fTaskGroup = new tbb::task_group();
 }
 
@@ -921,9 +888,7 @@ TTree::~TTree()
 
    delete fSchedInit;
    delete fTaskGroup;
-#ifdef EXTRAE
-   Extrae_fini();
-#endif
+   R__EXTRAE_END();
 }
 
 //______________________________________________________________________________
@@ -5152,9 +5117,7 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
    Int_t err_nb = 0;
    tbb::parallel_for(0, nbranches,
 		            [&](int i) {
-#ifdef EXTRAE
-	   	   	   	   	   Extrae_event(PBP_TASK_EID, EVENT_START);
-#endif
+	   	   	   	   	   R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
 
                        thread_local TThread thread_guard;
 	   	   	   	       Int_t nb=0;
@@ -5163,9 +5126,7 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
 	   	   	   	       if (nb < 0) err_nb = nb;
 	   	   	   	       else        nbytes += nb;
 
-#ifdef EXTRAE
-	   	   	   	       Extrae_event(PBP_TASK_EID, EVENT_END);
-#endif
+	   	   	   	       R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
                     }
    );
    if (err_nb < 0) return err_nb;
