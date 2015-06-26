@@ -15,7 +15,7 @@
 std::atomic<unsigned int> TExtraeInstrumenter::curr_thid = {0};
 
 
-/*void TExtraeInstrumenter::Init() {
+void TExtraeInstrumenter::Init() {
 	Extrae_set_threadid_function(TExtraeInstrumenter::GetThreadID);
 	Extrae_set_numthreads_function(TExtraeInstrumenter::GetNumThreads);
 
@@ -41,9 +41,9 @@ std::atomic<unsigned int> TExtraeInstrumenter::curr_thid = {0};
 		}
 		Extrae_define_event_type(&types[i], (char*)descriptions[i], &nvalues, values, (char**)descr_values);
 	}
-}*/
+}
 
-void TExtraeInstrumenter::Init() {
+/*void TExtraeInstrumenter::Init() {
 		Extrae_set_threadid_function(TExtraeInstrumenter::GetThreadID);
 		Extrae_set_numthreads_function(TExtraeInstrumenter::GetNumThreads);  
 
@@ -51,7 +51,7 @@ void TExtraeInstrumenter::Init() {
 
 		unsigned int ROOT_EVENT = PBP_TASK;
 
-		// Create string tags for event types and values
+		// Create string tags for event types and values /////
 		unsigned nvalues = 7;
 		extrae_value_t UNLOCK = LOCK+1;
 		extrae_value_t values[7]    = { 0, PBP_TASK, CACHE_READ, UNZIP, DESERIALIZE, LOCK, UNLOCK };
@@ -61,7 +61,7 @@ void TExtraeInstrumenter::Init() {
 		for (int i = 0; i < EVENT_NTYPES; i++) {
 			Extrae_define_event_type(&type, (char*)description, &nvalues, values, (char**)descr_values);
 		}
-}
+}*/
 
 
 void TExtraeInstrumenter::End() {

@@ -74,6 +74,14 @@
 #include "tbb/task_group.h"
 #endif
 
+#ifndef ROOT_TGraph
+#include "TGraph.h"
+#endif
+
+#ifndef ROOT_TCanvas
+#include "TCanvas.h"
+#endif
+
 class TBranch;
 class TBrowser;
 class TFile;
@@ -155,6 +163,10 @@ protected:
    Bool_t         fCacheUserSet;      //! true if the cache setting was explicitly given by user
    tbb::task_scheduler_init *fSchedInit; //! TBB scheduler initializer
    tbb::task_group *fTaskGroup;		  //! Group for parallel TBB subtasks created in the I/O of this tree
+   tbb::task * fTaskParent;           //! Parent for low-level API tasks
+   std::vector<std::pair<Long64_t,TBranch*>> fBSizes; //! Branches sorted by size
+   TGraph *graph;
+   TCanvas *canvas;
 
    static Int_t     fgBranchStyle;      //  Old/New branch style
    static Long64_t  fgMaxTreeSize;      //  Maximum size of a file containg a Tree
@@ -182,6 +194,7 @@ protected:
    void             ImportClusterRanges(TTree *fromtree);
    void             MoveReadCache(TFile *src, TDirectory *dir);
    Int_t            SetCacheSizeAux(Bool_t autocache = kTRUE, Long64_t cacheSize = 0);
+   void CreateGraph();
 
    class TFriendLock {
       // Helper class to prevent infinite recursion in the
@@ -557,6 +570,7 @@ public:
    virtual void            SetWeight(Double_t w = 1, Option_t* option = "");
    virtual void            SetUpdate(Int_t freq = 0) { fUpdate = freq; }
    virtual void            Show(Long64_t entry = -1, Int_t lenmax = 20);
+   virtual void            SortBranches();
    virtual void            StartViewer(); // *MENU*
    virtual Int_t           StopCacheLearningPhase();
    virtual Int_t           UnbinnedFit(const char* funcname, const char* varexp, const char* selection = "", Option_t* option = "", Long64_t nentries = 1000000000, Long64_t firstentry = 0);

@@ -80,9 +80,9 @@ private:
 
 public:
    TLockGuard(TVirtualMutex *mutex) : fMutex(mutex) {
-	   R__EXTRAE_EVENT(LOCK, ACQUIRE);
+	   //R__EXTRAE_EVENT(LOCK, ACQUIRE);
 	   if (fMutex) fMutex->Lock();
-	   R__EXTRAE_EVENT(LOCK, END_GENERIC);
+	   //R__EXTRAE_EVENT(LOCK, END_GENERIC);
    }
    Int_t UnLock() {
       if (!fMutex) return 0;
@@ -91,9 +91,9 @@ public:
       return tmp->UnLock();
    }
    ~TLockGuard() {
-	   R__EXTRAE_EVENT(LOCK, RELEASE);
+	   //R__EXTRAE_EVENT(LOCK, RELEASE);
 	   if (fMutex) fMutex->UnLock();
-	   R__EXTRAE_EVENT(LOCK, END_GENERIC);
+	   //R__EXTRAE_EVENT(LOCK, END_GENERIC);
    }
 
    ClassDefNV(TLockGuard,0)  // Exception safe locking/unlocking of mutex

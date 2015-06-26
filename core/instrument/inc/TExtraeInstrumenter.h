@@ -25,7 +25,7 @@
 #define MAX_EVENT_NVAL 3
 #define MIN_EVENT_NVAL 2
 
-#define NUM_THREADS 1
+#define NUM_THREADS 4 
 
 #include <atomic>
 
@@ -54,16 +54,16 @@ public:
 };
 
 
-#define EXTRAE
+//#define EXTRAE
 
 #ifdef EXTRAE
 #define R__EXTRAE_INIT() TExtraeInstrumenter::Init()
 #define R__EXTRAE_END()  TExtraeInstrumenter::End()
-//#define R__EXTRAE_EVENT(event_id, event_val) TExtraeInstrumenter::Event(event_id, event_val)
-#define R__EXTRAE_EVENT(event_id, event_val) \
+#define R__EXTRAE_EVENT(event_id, event_val) TExtraeInstrumenter::Event(event_id, event_val)
+/*#define R__EXTRAE_EVENT(event_id, event_val) \
 if (event_val == 0)         TExtraeInstrumenter::Event(PBP_TASK, 0); \
 else if (event_id != LOCK)  TExtraeInstrumenter::Event(PBP_TASK, event_id); \
-else                        TExtraeInstrumenter::Event(PBP_TASK, event_id+event_val-1);
+else                        TExtraeInstrumenter::Event(PBP_TASK, event_id+event_val-1);*/
 #else
 #define R__EXTRAE_INIT() { }
 #define R__EXTRAE_END()  { }

@@ -369,6 +369,10 @@
 #include "TFileMergeInfo.h"
 #include "TThread.h"
 #include "TExtraeInstrumenter.h"
+#include "TGraph.h"
+#include "TCanvas.h"
+#include "TAxis.h"
+
 
 #include <cstddef>
 #include <fstream>
@@ -376,14 +380,14 @@
 #include <string>
 #include <stdio.h>
 #include <limits.h>
-//#include <thread>
+#include <thread>
+#include <mutex>
 
 #include "tbb/parallel_for.h"
 //#include "tbb/task_group.h"
+#include "tbb/task.h"
 
 #include <sys/time.h>
-struct timeval stop, start;
-Double_t exec_time;
 
 Int_t    TTree::fgBranchStyle = 1;  // Use new TBranch style with TBranchElement.
 Long64_t TTree::fgMaxTreeSize = 100000000000LL;
@@ -605,6 +609,19 @@ Long64_t TTree::TClusterIterator::Next()
    return fStartEntry;
 }
 
+
+void TTree::CreateGraph() {
+	canvas = new TCanvas("c1","Correlation Graph",200,10,700,500);
+	canvas->SetGrid();
+	graph = new TGraph();
+	graph->SetMarkerColor(4);
+	graph->SetMarkerStyle(20);
+	graph->SetTitle("");
+        graph->GetXaxis()->SetTitle("Branch size (bytes)");
+	graph->GetYaxis()->SetTitle("Task time (us)");
+	graph->Draw("AP");
+}
+
 //
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
@@ -669,6 +686,10 @@ TTree::TTree()
 , fCacheDoAutoInit(kTRUE)
 , fCacheUserSet(kFALSE)
 , fTaskGroup(0)
+, fTaskParent(0)
+, fBSizes()
+, graph()
+, canvas()
 {
    // Default constructor and I/O constructor.
    //
@@ -685,7 +706,10 @@ TTree::TTree()
 
    fSchedInit = new tbb::task_scheduler_init(NUM_THREADS);
    fTaskGroup = new tbb::task_group();
+   fTaskParent = new( tbb::task::allocate_root() ) tbb::empty_task;
    R__EXTRAE_INIT();
+
+   CreateGraph();
 }
 
 //______________________________________________________________________________
@@ -746,6 +770,10 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
 , fCacheDoAutoInit(kTRUE)
 , fCacheUserSet(kFALSE)
 , fTaskGroup(0)
+, fTaskParent(0)
+, fBSizes()
+, graph()
+, canvas()
 {
    // Normal tree constructor.
    //
@@ -796,6 +824,10 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
 
    fSchedInit = new tbb::task_scheduler_init(NUM_THREADS);
    fTaskGroup = new tbb::task_group();
+   fTaskParent = new( tbb::task::allocate_root() ) tbb::empty_task;
+   R__EXTRAE_INIT();
+
+   CreateGraph();
 }
 
 //______________________________________________________________________________
@@ -888,7 +920,16 @@ TTree::~TTree()
 
    delete fSchedInit;
    delete fTaskGroup;
+   fTaskParent->destroy(*fTaskParent);
    R__EXTRAE_END();
+   
+   graph->GetXaxis()->SetTitle("Branch size (bytes)");
+   graph->GetYaxis()->SetTitle("Task time (us)");
+   graph->GetYaxis()->SetTitleOffset(1.4);
+   canvas->Update();
+   canvas->Print("/home/etejedor/apps/ttree_iter_cms/graph.png");
+   delete graph;
+   delete canvas;
 }
 
 //______________________________________________________________________________
@@ -4966,6 +5007,68 @@ Long64_t TTree::GetEntriesFriend() const
 }
 
 //______________________________________________________________________________
+void TTree::SortBranches()
+{
+   Int_t nbranches = fBranches.GetEntriesFast();
+   for (Int_t i = 0; i < nbranches; i++)  {
+       Long64_t bbytes = 0;
+       TBranch* branch = (TBranch*)fBranches.UncheckedAt(i);
+       if (branch) bbytes = branch->GetTotBytes("*");
+       fBSizes.push_back(std::make_pair(bbytes, branch));
+       //printf("Branch %s has size %lld\n", branch->GetName(), bbytes);
+   }
+
+   std::sort(fBSizes.begin(),
+		     fBSizes.end(),
+             [](std::pair<Long64_t,TBranch*> a, std::pair<Long64_t,TBranch*> b)
+             {
+                 return a.first > b.first;
+             });
+}
+
+
+class pbp_task : public tbb::task {
+
+private:
+	std::atomic<Int_t> *nbytes;
+	Int_t *err_nb;
+	Long64_t bsize;
+	TBranch *branch;
+	Long64_t entry;
+	Int_t getall;
+
+public:
+    pbp_task(std::atomic<Int_t> *nbytes, Int_t *err_nb, Long64_t bsize, TBranch *branch, Long64_t entry, Int_t getall)
+    : nbytes(nbytes)
+    , err_nb(err_nb)
+    , bsize(bsize)
+    , branch(branch)
+    , entry(entry)
+    , getall(getall)
+    {}
+
+    tbb::task* execute() {
+    	//printf("TASK - Processing Branch %s with size %lld\n", branch->GetName(), bsize);
+    	struct timeval stop, start;
+        Double_t time;
+        gettimeofday(&start, NULL);
+
+        R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+        thread_local TThread thread_guard;
+        Int_t nb = branch->GetEntry(entry, getall);
+        if (nb < 0) *err_nb = nb;
+        else        *nbytes += nb;
+        R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+
+        gettimeofday(&stop, NULL);
+        time = (Double_t)(stop.tv_sec - start.tv_sec) + (stop.tv_usec - start.tv_usec)*1.0E-06;
+        printf("TASK - Processing Branch %s with size %lld in time %f\n", branch->GetName(), bsize, time);
+        return NULL;
+    }
+};
+
+
+//______________________________________________________________________________
 Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
 {
    // Read all branches of entry and return total number of bytes read.
@@ -5077,10 +5180,23 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
    fReadEntry = entry;
 
    // create cache if wanted
-   if (fCacheDoAutoInit) SetCacheSizeAux();
+   //if (fCacheDoAutoInit) SetCacheSizeAux();
+   if (fCacheDoAutoInit) {
+       //gEnv->SetValue("TFile.AsyncPrefetching", 1);
+       SetCacheSizeAux();
+       /*TFileCacheRead *cache = GetCurrentFile()->GetCacheRead(this);
+       cache->SetEnablePrefetching(true);
+       printf("Prefetching activated\n");*/
+   }
 
    Int_t nbranches = fBranches.GetEntriesFast();
    Int_t nb=0;
+
+   static int npos = 0;
+   static std::mutex mutex;
+
+   /*fBSizes.clear();
+   SortBranches();*/
 
    // SEQUENTIAL
    /*TBranch *branch;
@@ -5113,11 +5229,11 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
    if (err_nb < 0) return err_nb;*/
 
    // TBB PARALLEL FOR
-   std::atomic<Int_t> nbytes;
+/*   std::atomic<Int_t> nbytes;
    Int_t err_nb = 0;
    tbb::parallel_for(0, nbranches,
 		            [&](int i) {
-	   	   	   	   	   R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+	   	   	   	   	   //R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
 
                        thread_local TThread thread_guard;
 	   	   	   	       Int_t nb=0;
@@ -5125,53 +5241,183 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
 	   	   	   	       nb = branch->GetEntry(entry, getall);
 	   	   	   	       if (nb < 0) err_nb = nb;
 	   	   	   	       else        nbytes += nb;
-
-	   	   	   	       R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+printf("Processing Branch %d %s in thread %d\n", i, branch->GetName(), std::this_thread::get_id());
+	   	   	   	       //R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
                     }
    );
    if (err_nb < 0) return err_nb;
-
+printf("\n");*/
    // TBB TASKS
-   /*std::atomic<Int_t> nbytes;
+/*   std::atomic<Int_t> nbytes;
    Int_t err_nb = 0;
    for (i=0;i<nbranches;i++)  {
 	   fTaskGroup->run([&, i]() {
+R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+                                           thread_local TThread thread_guard;
   	   	       	   	   	   Int_t nb=0;
   	   	       	   	   	   TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
   	   	       	   	   	   nb = branch->GetEntry(entry, getall);
   	   	       	   	   	   if (nb < 0) err_nb = nb;
   	   	       	   	   	   else        nbytes += nb;
+R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+//printf("Processing Branch %d %s in thread %d\n", i, branch->GetName(), std::this_thread::get_id());
          	 	 	   }
 	   );
    }
    fTaskGroup->wait();
-   if (err_nb < 0) return err_nb;*/
+   if (err_nb < 0) return err_nb;
+//printf("\n");*/
 
    // TBB TASKS with check
    /*std::atomic<Int_t> nbytes;
    Int_t err_nb = 0;
    for (i=0;i<nbranches;i++)  {
-	   //printf("Processing branch %d\n", i);
-	   TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
+    //printf("Processing branch %d\n", i);
+    TBranch *branch = (TBranch*)fBranches.UncheckedAt(i);
+	auto f = [&, i, branch]() {
+    	 	       Int_t nb=0;
+     	   	       nb = branch->GetEntry(entry, getall);
+     	   	       if (nb < 0) err_nb = nb;
+     	   	       else        nbytes += nb;
+    };
 
-	   auto f = [&, i, branch]() {
-  	   	       Int_t nb=0;
-  	   	       nb = branch->GetEntry(entry, getall);
-  	   	       if (nb < 0) err_nb = nb;
-  	   	       else        nbytes += nb;
-       };
-
-	   if (branch->IsThere(entry)) {
-		   //printf("Entry %d for branch %d is there\n", entry, i);
-		   f();
-	   }
-	   else {
-		   //printf("TASK!! Entry %d for branch %d is not there\n", entry, i);
-		   fTaskGroup->run(f);
-	   }
+    if (branch->IsThere(entry)) {
+      //printf("Entry %d for branch %d is there\n", entry, i);
+      f();
+    }
+    else {
+      //printf("TASK!! Entry %d for branch %d is not there\n", entry, i);
+      fTaskGroup->run(f);
+    }
    }
    fTaskGroup->wait();
    if (err_nb < 0) return err_nb;*/
+
+   // TBB TASKS sort by branch size
+   /*std::atomic<Int_t> nbytes;
+   Int_t err_nb = 0;
+   for (auto& p : fBSizes) {
+	   //printf("1 Processing Branch %s with size %d\n", p.second->GetName(), p.first);
+	   Long_t bsize = p.first;
+	   TBranch *branch = p.second;
+	   fTaskGroup->run([&, bsize, branch]() {
+	       //printf("2 Processing Branch %s with size %d\n", branch->GetName(), bsize);
+	       R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+	       thread_local TThread thread_guard;
+	       Int_t nb=0;
+	       //TBranch *branch = p.second;
+	       nb = branch->GetEntry(entry, getall);
+	       if (nb < 0) err_nb = nb;
+	       else        nbytes += nb;
+	       R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+	  });
+   }
+   fTaskGroup->wait();
+   if (err_nb < 0) return err_nb;
+   //printf("\n");*/
+
+   // TBB PARALLEL FOR PRIORITIES
+/*   std::atomic<Int_t> nbytes;
+   Int_t err_nb = 0;
+
+   tbb::task_group_context chigh, clow;
+   chigh.set_priority(tbb::priority_high);
+   clow.set_priority(tbb::priority_low);
+
+   fTaskGroup->run([&]() {
+	   tbb::parallel_for(0, nbranches/2,
+		            [&](int i) {
+	   	   	   	   	   R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+                       thread_local TThread thread_guard;
+	   	   	   	       Int_t nb=0;
+	   	   	   	       std::pair<Long_t,TBranch*> p = fBSizes.at(i);
+	   	   	   	       Long_t bsize = p.first;
+	   	   	   	       TBranch *branch = p.second;
+	   	   	   	       //printf("HIGH - Processing Branch %s with size %d\n", branch->GetName(), bsize);
+	   	   	   	       nb = branch->GetEntry(entry, getall);
+	   	   	   	       if (nb < 0) err_nb = nb;
+	   	   	   	       else        nbytes += nb;
+	   	   	   	       R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+                    },
+                    chigh
+       );
+   });
+
+   fTaskGroup->run([&]() {
+        tbb::parallel_for(nbranches/2, nbranches,
+   		            [&](int i) {
+   	   	   	   	   	   R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+                       thread_local TThread thread_guard;
+   	   	   	   	       Int_t nb=0;
+   	   	   	   	       std::pair<Long_t,TBranch*> p = fBSizes.at(i);
+   	   	   	  	   	   Long_t bsize = p.first;
+   	   	   	  	   	   TBranch *branch = p.second;
+   	   	   	  	   	   //printf("LOW - Processing Branch %s with size %d\n", branch->GetName(), bsize);
+   	   	   	   	       nb = branch->GetEntry(entry, getall);
+   	   	   	   	       if (nb < 0) err_nb = nb;
+   	   	   	   	       else        nbytes += nb;
+   	   	   	   	       R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+                       },
+                       clow
+          );
+   });
+
+   //printf("Waiting\n");
+   fTaskGroup->wait();
+   if (err_nb < 0) return err_nb;
+   //printf("\n");*/
+
+   // TBB TASKS enqueue ~FIFO + sort by branch size
+   /*std::atomic<Int_t> nbytes;
+   Int_t err_nb = 0;
+   fTaskParent->set_ref_count(fBSizes.size() + 1);
+   printf("\n");
+   for (auto& p : fBSizes) {
+	   Long64_t bsize = p.first;
+	   TBranch *branch = p.second;
+	   //printf("ORDER - Processing Branch %s with size %lld\n", branch->GetName(), bsize);
+  	   tbb::task &t = *new( fTaskParent->allocate_child() ) pbp_task(&nbytes, &err_nb, bsize, branch, entry, getall);
+           // TODO: Create a macro to replace this if
+#if NUM_THREADS == 1
+           fTaskParent->spawn(t);
+#else 
+  	   fTaskParent->enqueue(t);
+#endif
+   }
+   fTaskParent->wait_for_all();
+   if (err_nb < 0) return err_nb;*/
+
+
+   // TBB TASKS FIFO atomic 
+   std::atomic<Int_t> pos = {0};
+   std::atomic<Int_t> nbytes;
+   Int_t err_nb = 0;
+   for (i=0;i<nbranches;i++)  {
+       fTaskGroup->run([&]() {
+    	   struct timeval stop, start;
+           Double_t time;
+           gettimeofday(&start, NULL);
+
+           R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+           thread_local TThread thread_guard;
+           Int_t nb=0;
+           Int_t j = pos.fetch_add(1); 
+           TBranch *branch = fBSizes.at(j).second;
+           //printf("Processing Branch %s with size %lld\n", branch->GetName(), fBSizes.at(j).first);
+           nb = branch->GetEntry(entry, getall);
+           if (nb < 0) err_nb = nb;
+           else        nbytes += nb;
+           R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+
+           gettimeofday(&stop, NULL);
+           time = (stop.tv_sec - start.tv_sec)*1.0E06 + (stop.tv_usec - start.tv_usec);
+           std::lock_guard<std::mutex> lock(mutex);
+           graph->SetPoint(npos++, (Double_t)fBSizes.at(j).first, time);
+       });
+   }
+   fTaskGroup->wait();
+   if (err_nb < 0) return err_nb;
+   //printf("\n");
 
 
    // GetEntry in list of friends

@@ -18,6 +18,7 @@ ROOT_GENERATE_DICTIONARY(G__${libname} *.h MODULE ${libname} LINKDEF LinkDef.h O
 
 INCLUDE_DIRECTORIES(${TBB_INCLUDE_DIRS})
 
-ROOT_LINKER_LIBRARY(${libname} *.cxx G__${libname}.cxx LIBRARIES ${TBB_LIBRARY_RELEASE} DEPENDENCIES ExtraeInstrumenter Net RIO Thread)
+# TODO: REMOVE HIST and GPAD DEPS!!!!!
+ROOT_LINKER_LIBRARY(${libname} *.cxx G__${libname}.cxx LIBRARIES ${TBB_LIBRARY_RELEASE} DEPENDENCIES ExtraeInstrumenter Net RIO Thread Hist Gpad)
 ROOT_INSTALL_HEADERS()
 
