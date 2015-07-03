@@ -251,7 +251,7 @@ namespace {
     CallArgs.push_back(EVPOn);
 
     ExprResult Call;
-    SourceLocation noLoc;
+    SourceLocation noLoc = locStart;
     if (desugaredTy->isVoidType()) {
       // In cases where the cling::Value gets reused we need to reset the
       // previous settings to void.
@@ -303,6 +303,11 @@ namespace {
 
       }
       else {
+        if (!E->getSourceRange().isValid()) {
+          // We cannot do CXXNewExpr::CallInit (see Sema::BuildCXXNew) but
+          // that's what we want. Fail...
+          return E;
+        }
         TypeSourceInfo* ETSI
           = m_Context->getTrivialTypeSourceInfo(ETy, noLoc);
 

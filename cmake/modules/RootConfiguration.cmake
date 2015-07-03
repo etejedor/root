@@ -396,12 +396,6 @@ set(buildhttp ${value${http}})
 set(buildtable ${value${table}})
 set(buildtmva ${value${tmva}})
 
-set(buildclarens ${value${clarens}})
-set(clarensincdir ${CLARENS_INCLUDE_DIR})
-set(clarenslibs ${CLARENS_LIBRARIES})
-set(buildpeac ${value${peac}})
-
-
 set(cursesincdir ${CURSES_INCLUDE_DIR})
 set(curseslibdir)
 set(curseslib ${CURSES_LIBRARIES})
@@ -448,11 +442,13 @@ else()
   set(hasvc undef)
 endif()
 if(cxx11)
+  set(cxxversion cxx11)
   set(usec++11 define)
 else()
   set(usec++11 undef)
 endif()
 if(cxx14)
+  set(cxxversion cxx14)
   set(usec++14 define)
 else()
   set(usec++14 undef)
@@ -526,8 +522,13 @@ configure_file(${CMAKE_SOURCE_DIR}/cmake/scripts/RootUseFile.cmake.in
                ${CMAKE_BINARY_DIR}/ROOTUseFile.cmake @ONLY NEWLINE_STYLE UNIX)
 
 #---Compiler flags (because user apps are a bit dependent on them...)----------------------------------------
+string(REGEX REPLACE "(^|[ ]*)-W[^ ]*" "" __cxxflags "${CMAKE_CXX_FLAGS}")
+string(REGEX REPLACE "(^|[ ]*)-W[^ ]*" "" __cflags "${CMAKE_C_FLAGS}")
+string(REGEX REPLACE "(^|[ ]*)-W[^ ]*" "" __fflags "${CMAKE_fortran_FLAGS}")
 set(ROOT_COMPILER_FLAG_HINTS "#
-set(ROOT_CXX_FLAGS \"${CMAKE_CXX_FLAGS}\")
+set(ROOT_CXX_FLAGS \"${__cxxflags}\")
+set(ROOT_C_FLAGS \"${__cflags}\")
+set(ROOT_fortran_FLAGS \"${__fflags}\")
 set(ROOT_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}\")")
 
 #---To be used from the binary tree--------------------------------------------------------------------------

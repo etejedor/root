@@ -33,19 +33,20 @@ namespace {
       return pyclass;
    }
 
-//____________________________________________________________________________
+////////////////////////////////////////////////////////////////////////////////
+
    void meta_dealloc( PyRootClass* pytype )
    {
       return PyType_Type.tp_dealloc( (PyObject*)pytype );
    }
 
-//____________________________________________________________________________
+////////////////////////////////////////////////////////////////////////////////
+/// Called when PyRootType acts as a metaclass; since type_new always resets
+/// tp_alloc, and since it does not call tp_init on types, the metaclass is
+/// being fixed up here, and the class is initialized here as well.
+
    PyObject* pt_new( PyTypeObject* subtype, PyObject* args, PyObject* kwds )
    {
-   // Called when PyRootType acts as a metaclass; since type_new always resets
-   // tp_alloc, and since it does not call tp_init on types, the metaclass is
-   // being fixed up here, and the class is initialized here as well.
-
    // fixup of metaclass (left permanent, and in principle only called once b/c
    // PyROOT caches python classes)
       subtype->tp_alloc   = (allocfunc)meta_alloc;
@@ -91,7 +92,6 @@ namespace {
       // filter for python specials and lookup qualified class or function
          std::string name = PyROOT_PyUnicode_AsString( pyname );
          if ( name.size() <= 2 || name.substr( 0, 2 ) != "__" ) {
-
             attr = CreateScopeProxy( name, pyclass );
 
          // namespaces may have seen updates in their list of global functions, which
@@ -166,8 +166,14 @@ namespace {
          }
 
       // if failed, then the original error is likely to be more instructive
-         if ( ! attr )
+         if ( ! attr && etype )
             PyErr_Restore( etype, value, trace );
+         else if ( ! attr ) {
+            PyObject* sklass = PyObject_Str( pyclass );
+            PyErr_Format( PyExc_AttributeError, "%s has no attribute \'%s\'",
+               PyROOT_PyUnicode_AsString( sklass ), PyROOT_PyUnicode_AsString( pyname ) );
+            Py_DECREF( sklass );
+         }
 
       // attribute is cached, if found
       }

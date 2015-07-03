@@ -100,6 +100,7 @@ if(builtin_lzma)
   else()
     if(CMAKE_CXX_COMPILER_ID STREQUAL Clang)
       set(LZMA_CFLAGS "-Wno-format-nonliteral")
+      set(LZMA_LDFLAGS "-Qunused-arguments")
     elseif( CMAKE_CXX_COMPILER_ID STREQUAL Intel)
       set(LZMA_CFLAGS "-wd188 -wd181 -wd1292 -wd10006 -wd10156 -wd2259 -wd981 -wd128 -wd3179")
     endif()
@@ -108,7 +109,8 @@ if(builtin_lzma)
       URL ${CMAKE_SOURCE_DIR}/core/lzma/src/xz-${lzma_version}.tar.gz
       URL_MD5 3e44c766c3fb4f19e348e646fcd5778a
       INSTALL_DIR ${CMAKE_BINARY_DIR}
-      CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix <INSTALL_DIR> --with-pic --disable-shared CFLAGS=${LZMA_CFLAGS}
+      CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix <INSTALL_DIR> --with-pic --disable-shared --quiet
+                        CFLAGS=${LZMA_CFLAGS} LDFLAGS=${LZMA_LDFLAGS}
       BUILD_IN_SOURCE 1)
     set(LZMA_LIBRARIES ${CMAKE_BINARY_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}lzma${CMAKE_STATIC_LIBRARY_SUFFIX})
     set(LZMA_INCLUDE_DIR ${CMAKE_BINARY_DIR}/include)
@@ -285,7 +287,7 @@ if(opengl)
   else()
     find_package(OpenGL)
   endif()
-  if(NOT OPENGL_FOUND OR NOT OPENGL_GLU_FOUND)
+  if(NOT OPENGL_LIBRARIES)
     if(fail-on-missing)
       message(FATAL_ERROR "OpenGL package (with GLU) not found and opengl option required")
     else()
@@ -507,16 +509,34 @@ endif()
 
 #---Check for FFTW3-------------------------------------------------------------------
 if(fftw3)
-  message(STATUS "Looking for FFTW3")
-  find_package(FFTW)
-  if(NOT FFTW_FOUND)
-    if(fail-on-missing)
-      message(FATAL_ERROR "FFTW3 libraries not found and they are required (fftw3 option enabled)")
-    else()
-      message(STATUS "FFTW3 not found. Switching off fftw3 option")
-      set(fftw3 OFF CACHE BOOL "" FORCE)
+  if(NOT builtin_fftw3)
+    message(STATUS "Looking for FFTW3")
+    find_package(FFTW)
+    if(NOT FFTW_FOUND)
+      if(fail-on-missing)
+        message(FATAL_ERROR "FFTW3 libraries not found and they are required (fftw3 option enabled)")
+      else()
+        message(STATUS "FFTW3 not found. Set [environment] variable FFTW_DIR to point to your FFTW3 installation")
+        message(STATUS "                 Alternatively, you can also enable the option 'builtin_fftw3' to build FFTW3 internally'")
+        message(STATUS "                 For the time being switching OFF 'fftw3' option")
+        set(fftw3 OFF CACHE BOOL "" FORCE)
+      endif()
     endif()
   endif()
+endif()
+if(builtin_fftw3)
+  set(FFTW_VERSION 3.1.2)
+  message(STATUS "Downloading and building FFTW version ${FFTW_VERSION}")
+  ExternalProject_Add(
+    FFTW3
+    URL http://service-spi.web.cern.ch/service-spi/external/tarFiles/fftw-${FFTW_VERSION}.tar.gz
+    INSTALL_DIR ${CMAKE_BINARY_DIR}
+    CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR>
+    BUILD_COMMAND make CFLAGS=-fPIC
+    BUILD_IN_SOURCE 1 )
+  set(FFTW_INCLUDE_DIR ${CMAKE_BINARY_DIR}/include)
+  set(FFTW_LIBRARIES ${CMAKE_BINARY_DIR}/lib/libfftw3.a)
+  set(fftw3 ON CACHE BOOL "" FORCE)
 endif()
 
 #---Check for fitsio-------------------------------------------------------------------
@@ -578,8 +598,8 @@ endif()
 
 #---Check for Xrootd support---------------------------------------------------------
 if(xrootd)
-  message(STATUS "Looking for XROOTD")
   if(NOT builtin_xrootd)
+    message(STATUS "Looking for XROOTD")
     find_package(XROOTD)
     if(NOT XROOTD_FOUND)
       message(STATUS "XROOTD not found. Set environment variable XRDSYS to point to your XROOTD installation")
@@ -592,13 +612,18 @@ if(xrootd)
   endif()
 endif()
 if(builtin_xrootd)
-  set(xrootd_version 3.3.6)
-  set(xrootd_versionnum 300030006)
+  set(xrootd_version 4.2.1)
+  set(xrootd_versionnum 400020001)
   message(STATUS "Downloading and building XROOTD version ${xrootd_version}")
   string(REPLACE "-Wall " "" __cxxflags "${CMAKE_CXX_FLAGS}")  # Otherwise it produces many warnings
   string(REPLACE "-W " "" __cxxflags "${__cxxflags}")          # Otherwise it produces many warnings
   ROOT_ADD_CXX_FLAG(__cxxflags -Wno-duplicate-decl-specifier)
   ROOT_ADD_CXX_FLAG(__cxxflags -Wno-deprecated-declarations)
+  ROOT_ADD_CXX_FLAG(__cxxflags -Wno-conditional-uninitialized)
+  ROOT_ADD_CXX_FLAG(__cxxflags -Wno-unused-result)
+  ROOT_ADD_CXX_FLAG(__cxxflags -Wno-sometimes-uninitialized)
+  ROOT_ADD_CXX_FLAG(__cxxflags -Wno-pointer-bool-conversion)
+  ROOT_ADD_CXX_FLAG(__cxxflags -Wno-format-security)
   ExternalProject_Add(
     XROOTD
     URL http://xrootd.org/download/v${xrootd_version}/xrootd-${xrootd_version}.tar.gz
@@ -620,10 +645,14 @@ if(builtin_xrootd)
     endif()
   endif()
   set(XROOTD_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/include/xrootd ${CMAKE_BINARY_DIR}/include/xrootd/private)
-  set(XROOTD_LIBRARIES ${CMAKE_BINARY_DIR}/${_LIBDIR_DEFAULT}/libXrdMain${CMAKE_SHARED_LIBRARY_SUFFIX}
-                       ${CMAKE_BINARY_DIR}/${_LIBDIR_DEFAULT}/libXrdUtils${CMAKE_SHARED_LIBRARY_SUFFIX}
+  set(XROOTD_LIBRARIES ${CMAKE_BINARY_DIR}/${_LIBDIR_DEFAULT}/libXrdUtils${CMAKE_SHARED_LIBRARY_SUFFIX}
                        ${CMAKE_BINARY_DIR}/${_LIBDIR_DEFAULT}/libXrdClient${CMAKE_SHARED_LIBRARY_SUFFIX}
                        ${CMAKE_BINARY_DIR}/${_LIBDIR_DEFAULT}/libXrdCl${CMAKE_SHARED_LIBRARY_SUFFIX})
+  if(xrootd_version VERSION_LESS 4)
+    list(APPEND XROOTD_LIBRARIES ${CMAKE_BINARY_DIR}/${_LIBDIR_DEFAULT}/libXrdMain${CMAKE_SHARED_LIBRARY_SUFFIX})
+  else()
+    set(XROOTD_NOMAIN TRUE)
+  endif()
   set(XROOTD_CFLAGS "-DROOTXRDVERS=${xrootd_versionnum}")
   install(DIRECTORY ${CMAKE_BINARY_DIR}/${_LIBDIR_DEFAULT}/ DESTINATION ${CMAKE_INSTALL_LIBDIR}
                     COMPONENT libraries
@@ -759,6 +788,23 @@ if(chirp)
     endif()
   endif()
 endif()
+
+#---Check for R/Rcpp/RInside--------------------------------------------------------------------
+#added search of R packages here to remove multiples searches
+if(r)
+  message(STATUS "Looking for R")
+  find_package(R COMPONENTS Rcpp RInside)
+  if(NOT R_FOUND)
+    if(fail-on-missing)
+       message(FATAL_ERROR "R installation not found and is required ('r' option enabled)")
+    else()
+       message(STATUS "R installation not found. Set variable R_DIR to point to your R installation")
+       message(STATUS "For the time being switching OFF 'r' option")
+       set(r OFF CACHE BOOL "" FORCE)
+    endif()
+  endif()
+endif()
+
 
 #---Check for hdfs--------------------------------------------------------------------
 if(hdfs)
@@ -901,7 +947,7 @@ if(tbb)
 endif()
 
 #---Report non implemented options---------------------------------------------------
-foreach(opt afs clarens glite pch peac sapdb srp geocad)
+foreach(opt afs glite sapdb srp geocad)
   if(${opt})
     message(STATUS ">>> Option '${opt}' not implemented yet! Signal your urgency to pere.mato@cern.ch")
     set(${opt} OFF CACHE BOOL "" FORCE)

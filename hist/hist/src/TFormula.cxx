@@ -25,6 +25,7 @@
 #include "TFormula.h"
 #include <cassert>
 #include <iostream>
+#include <unordered_map>
 
 using namespace std;
 
@@ -42,9 +43,10 @@ using namespace std;
 #include "v5/TFormula.h"
 
 ClassImp(TFormula)
-//______________________________________________________________________________
+////////////////////////////////////////////////////////////////////////////////
+
 /******************************************************************************
-Begin_Htnl
+Begin_Html
 <h1>The  F O R M U L A  class</h1>
 
 <p>This is a new version of the TFormula class based on Cling.
@@ -137,9 +139,13 @@ End_Html
 //*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 
 // prefix used for function name passed to Cling
-static const TString gNamePrefix = "T__";
+static const TString gNamePrefix = "TFormula__";
 // function index number used to append in cling name to avoid a clash
 static std::atomic<unsigned int> gFormulaAtomicIndex(0);
+
+// static map of function pointers and expressions
+//static std::unordered_map<std::string,  TInterpreter::CallFuncIFacePtr_t::Generic_t> gClingFunctions = std::unordered_map<TString,  TInterpreter::CallFuncIFacePtr_t::Generic_t>();
+static std::unordered_map<std::string,  void *> gClingFunctions = std::unordered_map<std::string,  void * >();
 
 Bool_t TFormula::IsOperator(const char c)
 {
@@ -170,6 +176,18 @@ Bool_t TFormula::IsFunctionNameChar(const char c)
 Bool_t TFormula::IsDefaultVariableName(const TString &name)
 {
    return name == "x" || name == "z" || name == "y" || name == "t";
+}
+
+
+Bool_t TFormula::IsScientificNotation(const TString & formula, int i)
+{
+   // check if the character at position i  is part of a scientific notation
+   if ( (formula[i] == 'e' || formula[i] == 'E')  &&  (i > 0 && i <  formula.Length()-1) )  {
+      // handle cases:  2e+3 2e-3 2e3 and 2.e+3
+      if ( (isdigit(formula[i-1]) || formula[i-1] == '.') && ( isdigit(formula[i+1]) || formula[i+1] == '+' || formula[i+1] == '-' ) )
+         return true;
+   }
+   return false; 
 }
 
 bool TFormulaParamOrder::operator() (const TString& a, const TString& b) const {
@@ -219,7 +237,8 @@ TFormula::TFormula()
    fFormula = "";
 }
 
-//______________________________________________________________________________
+////////////////////////////////////////////////////////////////////////////////
+
 static bool IsReservedName(const char* name){
    if (strlen(name)!=1) return false;
    for (auto const & specialName : {"x","y","z","t"}){
@@ -277,7 +296,7 @@ TFormula::TFormula(const char *name, Int_t nparams, Int_t ndims)
 }
 #endif
 
-TFormula::TFormula(const TString &name, TString formula, bool addToGlobList)   :
+TFormula::TFormula(const char *name, const char *formula, bool addToGlobList)   :
    TNamed(name,formula),
    fClingInput(formula),fFormula(formula)
 {
@@ -297,7 +316,7 @@ TFormula::TFormula(const TString &name, TString formula, bool addToGlobList)   :
       if (old)
          gROOT->GetListOfFunctions()->Remove(old);
       if (IsReservedName(name))
-         Error("TFormula","The name %s is reserved as a TFormula variable name.\n",name.Data());
+         Error("TFormula","The name %s is reserved as a TFormula variable name.\n",name);
       else
          gROOT->GetListOfFunctions()->Add(this);
    }
@@ -305,17 +324,12 @@ TFormula::TFormula(const TString &name, TString formula, bool addToGlobList)   :
 
    //fName = gNamePrefix + name;  // is this needed
 
-   PreProcessFormula(fFormula);
+   // do not process null formulas.
+   if (!fFormula.IsNull() ) { 
+      PreProcessFormula(fFormula);
 
-   //std::cout << "formula " << GetName() << " is preprocessed " << std::endl;
-   //std::cout << fFormula << std::endl;
-
-   fClingInput = fFormula;
-   PrepareFormula(fClingInput);
-
-
-   // std::cout << "formula " << GetName() << " is prepared " << std::endl;
-   // std::cout << fClingInput.Data() << std::endl;
+      PrepareFormula(fFormula);
+   }
 
 }
 
@@ -345,8 +359,7 @@ TFormula::TFormula(const TFormula &formula) : TNamed(formula.GetName(),formula.G
    }
 
    PreProcessFormula(fFormula);
-   fClingInput = fFormula;
-   PrepareFormula(fClingInput);
+   PrepareFormula(fFormula);
 }
 
 TFormula& TFormula::operator=(const TFormula &rhs)
@@ -386,10 +399,10 @@ Int_t TFormula::Compile(const char *expression)
    fFormula = formula;
    if (fVars.empty() ) FillDefaults(); 
    // prepare the formula for Cling
+   printf("compile: processing formula %s\n",fFormula.Data() );
    PreProcessFormula(fFormula);
-   fClingInput = fFormula;
    // pass formula in CLing
-   bool ret = PrepareFormula(fClingInput);
+   bool ret = PrepareFormula(fFormula);
 
    return (ret) ? 0 : 1;      
 }
@@ -486,7 +499,7 @@ void TFormula::Clear(Option_t * )
    fLinearParts.clear();
 
 }
-void TFormula::PrepareEvalMethod()
+bool TFormula::PrepareEvalMethod()
 {
    //*-*
    //*-*    Sets TMethodCall to function inside Cling environment
@@ -517,7 +530,7 @@ void TFormula::PrepareEvalMethod()
       if(!fMethod->IsValid())
       {
          Error("Eval","Can't find %s function prototype with arguments %s",fClingName.Data(),prototypeArguments.Data());
-         return ;
+         return false;
       }
 
       // not needed anymore since we use the function pointer
@@ -539,6 +552,7 @@ void TFormula::PrepareEvalMethod()
       TInterpreter::CallFuncIFacePtr_t faceptr = gCling->CallFunc_IFacePtr(callfunc);
       fFuncPtr = faceptr.fGeneric;
    }
+   return true; 
 }
 
 void TFormula::InputFormulaIntoCling()
@@ -549,8 +563,7 @@ void TFormula::InputFormulaIntoCling()
    if(!fClingInitialized && fReadyToExecute && fClingInput.Length() > 0)
    {
       gCling->Declare(fClingInput);
-      PrepareEvalMethod();
-      fClingInitialized = true;
+      fClingInitialized = PrepareEvalMethod();
    }
 }
 void TFormula::FillDefaults()
@@ -569,14 +582,18 @@ void TFormula::FillDefaults()
    // const pair<TString,Double_t> defconsts[] = { {"pi",TMath::Pi()}, {"sqrt2",TMath::Sqrt2()},
    //       {"infinity",TMath::Infinity()}, {"ln10",TMath::Ln10()},
    //       {"loge",TMath::LogE()}, {"true",1},{"false",0} };
-   const pair<TString,TString> funShortcuts[] = { {"sin","TMath::Sin" },
-         {"cos","TMath::Cos" }, {"exp","TMath::Exp"}, {"log","TMath::Log"}, {"log10","TMath::Log10"},
-         {"tan","TMath::Tan"}, {"sinh","TMath::SinH"}, {"cosh","TMath::CosH"},
-         {"tanh","TMath::TanH"}, {"asin","TMath::ASin"}, {"acos","TMath::ACos"},
-         {"atan","TMath::ATan"}, {"atan2","TMath::ATan2"}, {"sqrt","TMath::Sqrt"},
-         {"ceil","TMath::Ceil"}, {"floor","TMath::Floor"}, {"pow","TMath::Power"},
-         {"binomial","TMath::Binomial"},{"abs","TMath::Abs"} };
-
+   const pair<TString,TString> funShortcuts[] =
+      { {"sin","TMath::Sin" },
+        {"cos","TMath::Cos" }, {"exp","TMath::Exp"}, {"log","TMath::Log"}, {"log10","TMath::Log10"},
+        {"tan","TMath::Tan"}, {"sinh","TMath::SinH"}, {"cosh","TMath::CosH"},
+        {"tanh","TMath::TanH"}, {"asin","TMath::ASin"}, {"acos","TMath::ACos"},
+        {"atan","TMath::ATan"}, {"atan2","TMath::ATan2"}, {"sqrt","TMath::Sqrt"},
+        {"ceil","TMath::Ceil"}, {"floor","TMath::Floor"}, {"pow","TMath::Power"},
+        {"binomial","TMath::Binomial"},{"abs","TMath::Abs"},
+        {"min","TMath::Min"},{"max","TMath::Max"},{"sign","TMath::Sign" },
+        {"sq","TMath::Sq"}  
+      };
+   
    std::vector<TString> defvars2(10);
    for (int i = 0; i < 9; ++i)
       defvars2[i] = TString::Format("x[%d]",i);
@@ -664,12 +681,19 @@ void TFormula::HandlePolN(TString &formula)
       Bool_t defaultVariable = false;
       TString variable;
       Int_t openingBracketPos = formula.Index('(',polPos);
-      Bool_t defaultCounter = (openingBracketPos != polPos + TString("pol").Length());
+      Bool_t defaultCounter = openingBracketPos == kNPOS;
       Bool_t defaultDegree = true;
       Int_t degree,counter;
+      TString sdegree;
       if(!defaultCounter)
       {
-          degree = TString(formula(polPos + 3,openingBracketPos - polPos - 3)).Atoi();
+         // veryfy first of opening parenthesis belongs to pol expression
+         // character between 'pol' and '(' must all be digits
+         sdegree = formula(polPos + 3,openingBracketPos - polPos - 3);
+         if (!sdegree.IsDigit() ) defaultCounter = true;
+      }
+      if (!defaultCounter) { 
+          degree = sdegree.Atoi();
           counter = TString(formula(openingBracketPos+1,formula.Index(')',polPos) - openingBracketPos)).Atoi();
       }
       else
@@ -752,6 +776,8 @@ void TFormula::HandleParametrizedFunctions(TString &formula)
    functions.insert(make_pair(make_pair("gaus",1),make_pair("[0]*exp(-0.5*(({V0}-[1])/[2])*(({V0}-[1])/[2]))","[0]*exp(-0.5*(({V0}-[1])/[2])*(({V0}-[1])/[2]))/(sqrt(2*pi)*[2])")));
    functions.insert(make_pair(make_pair("landau",1),make_pair("[0]*TMath::Landau({V0},[1],[2],false)","[0]*TMath::Landau({V0},[1],[2],true)")));
    functions.insert(make_pair(make_pair("expo",1),make_pair("exp([0]+[1]*{V0})","")));
+   functions.insert(make_pair(make_pair("crystalball",1),make_pair("[0]*ROOT::Math::crystalball_function({V0},[3],[4],[2],[1])","[0]*ROOT::Math::crystalball_pdf({V0},[3],[4],[2],[1])")));
+   functions.insert(make_pair(make_pair("breitwigner",1),make_pair("[0]*ROOT::Math::breitwigner_pdf({V0},[2],[1])","[0]*ROOT::Math::breitwigner_pdf({V0},[2],[4],[1])")));
    // chebyshev polynomial
    functions.insert(make_pair(make_pair("cheb0" ,1),make_pair("ROOT::Math::Chebyshev0({V0},[0])","")));
    functions.insert(make_pair(make_pair("cheb1" ,1),make_pair("ROOT::Math::Chebyshev1({V0},[0],[1])","")));
@@ -773,6 +799,7 @@ void TFormula::HandleParametrizedFunctions(TString &formula)
    functionsNumbers["gaus"] = 100;
    functionsNumbers["landau"] = 400;
    functionsNumbers["expo"] = 200;
+   functionsNumbers["crystalball"] = 500;
 
    // replace old names xygaus -> gaus[x,y]
    formula.ReplaceAll("xygaus","gaus[x,y]");
@@ -824,7 +851,7 @@ void TFormula::HandleParametrizedFunctions(TString &formula)
          {
             SetBit(kNormalized,1);
          }
-         TString *variables = 0;
+         std::vector<TString> variables;
          Int_t dim = 0;
          TString varList = "";
          Bool_t defaultVariable = false;
@@ -835,7 +862,7 @@ void TFormula::HandleParametrizedFunctions(TString &formula)
          if(openingBracketPos > formula.Length() || formula[openingBracketPos] != '[')
          {
             dim = 1;
-            variables = new TString[dim];
+            variables.resize(dim);
             variables[0] = "x";
             defaultVariable = true;
          }
@@ -845,7 +872,7 @@ void TFormula::HandleParametrizedFunctions(TString &formula)
             closingBracketPos = formula.Index(']',openingBracketPos);
             varList = formula(openingBracketPos+1,closingBracketPos - openingBracketPos - 1);
             dim = varList.CountChar(',') + 1;
-            variables = new TString[dim];
+            variables.resize(dim);
             Int_t Nvar = 0;
             TString varName = "";
             for(Int_t i = 0 ; i < varList.Length(); ++i)
@@ -1004,17 +1031,25 @@ void TFormula::HandleExponentiation(TString &formula)
          if (depth == 0) temp++;
       }
       // this in case of someting like sin(x+2)^2
-      temp--;  // go down one
-      assert(temp+1 >= 0);
-      while(temp >= 0 && !IsOperator(formula[temp]) && !IsBracket(formula[temp]) )
-      {
-         temp--;
+      do {
+         temp--;  // go down one
+         // handle scientific notation cases (1.e-2 ^ 3 )
+         if (temp>=2 && IsScientificNotation(formula, temp-1) ) temp-=3;
       }
-      left = formula(temp + 1, caretPos - (temp + 1));
+      while(temp >= 0 && !IsOperator(formula[temp]) && !IsBracket(formula[temp]) );
+      
+      assert(temp+1 >= 0);
+      Int_t leftPos = temp+1;
+      left = formula(leftPos, caretPos - leftPos);
+      //std::cout << "left to replace is " << left << std::endl;
 
       // look now at the expression after the ^ operator
       temp = caretPos;
       temp++;
+      if (temp >= formula.Length() ) {
+         Error("HandleExponentiation","Invalid position of operator ^");
+         return;
+      }
       if(formula[temp] == '(')
       {
          Int_t depth = 1;
@@ -1029,18 +1064,30 @@ void TFormula::HandleExponentiation(TString &formula)
          }
          temp--;
       }
-      while(temp < formula.Length() && !IsOperator(formula[temp]))
-      {
-         temp++;
+      else {
+         // handle case  first character is operator - or + continue
+         if (formula[temp] == '-' || formula[temp] == '+' ) temp++;
+         // handle cases x^-2 or x^+2
+         // need to handle also cases x^sin(x+y)
+         Int_t depth = 0; 
+         while(temp < formula.Length() && ( (depth > 0) || !IsOperator(formula[temp]) ) ) 
+         {
+            temp++;
+            // handle scientific notation cases (1.e-2 ^ 3 )
+            if (temp>=2 && IsScientificNotation(formula, temp) ) temp+=2;
+            // for internal parenthesis
+            if (formula[temp] == '(') depth++;
+            if (depth > 0 && formula[temp] == ')') depth--;
+         }
       }
       right = formula(caretPos + 1, (temp - 1) - caretPos );
 
       TString pattern = TString::Format("%s^%s",left.Data(),right.Data());
       TString replacement = TString::Format("pow(%s,%s)",left.Data(),right.Data());
 
-      // std::cout << "pattern : " << pattern << std::endl;
-      // std::cout << "replacement : " << replacement << std::endl;
-      formula.ReplaceAll(pattern,replacement);
+      //std::cout << "pattern : " << pattern << std::endl;
+      //std::cout << "replacement : " << replacement << std::endl;
+      formula.Replace(leftPos,pattern.Length(),replacement,replacement.Length());
 
       caretPos = formula.Last('^');
    }
@@ -1113,12 +1160,17 @@ void TFormula::PreProcessFormula(TString &formula)
 }
 Bool_t TFormula::PrepareFormula(TString &formula)
 {
+   // prepare the formula to be executed
+   // normally is called with fFormula
+   
    fFuncs.clear();
    fReadyToExecute = false;
    ExtractFunctors(formula);
 
    // update the expression with the new formula
    fFormula = formula;
+   // save formula to parse variable and parameters for Cling
+   fClingInput = formula; 
    // replace all { and }
    fFormula.ReplaceAll("{","");
    fFormula.ReplaceAll("}","");
@@ -1129,12 +1181,13 @@ Bool_t TFormula::PrepareFormula(TString &formula)
    fFuncs.sort();
    fFuncs.unique();
 
-   ProcessFormula(formula);
+   // use inputFormula for Cling
+   ProcessFormula(fClingInput);
 
    // for pre-defined functions (need after processing)
    if (fNumber != 0) SetPredefinedParamNames();
 
-   return fReadyToExecute;
+   return fReadyToExecute && fClingInitialized;
 }
 void TFormula::ExtractFunctors(TString &formula)
 {
@@ -1183,11 +1236,8 @@ void TFormula::ExtractFunctors(TString &formula)
          } while(formula[i] != '\"');
       }
       // case of e or E for numbers in exponential notaton (e.g. 2.2e-3)
-      if ( (formula[i] == 'e' || formula[i] == 'E')  &&  (i > 0 && i <  formula.Length()-1) )  {
-         // handle cases:  2e+3 2e-3 2e3 and 2.e+3
-         if ( (isdigit(formula[i-1]) || formula[i-1] == '.') && ( isdigit(formula[i+1]) || formula[i+1] == '+' || formula[i+1] == '-' ) )
-            continue;
-      }
+      if (IsScientificNotation(formula, i) )
+         continue; 
 
       //std::cout << "investigating character : " << i << " " << formula[i] << " of formula " << formula << std::endl;
       // look for variable and function names. They  start in C++ with alphanumeric characters
@@ -1338,7 +1388,7 @@ void TFormula::ProcessFormula(TString &formula)
    //*-*    it inputs C++ code of formula into cling, and sets flag that formula is ready to evaluate.
    //*-*
 
-   //std::cout << "Begin: formula is " << formula << " list of functors " << fFuncs.size() << std::endl;
+   // std::cout << "Begin: formula is " << formula << " list of functors " << fFuncs.size() << std::endl;
 
    for(list<TFormulaFunction>::iterator funcsIt = fFuncs.begin(); funcsIt != fFuncs.end(); ++funcsIt)
    {
@@ -1355,8 +1405,27 @@ void TFormula::ProcessFormula(TString &formula)
          {
             TString shortcut = it->first;
             TString full = it->second;
-            formula.ReplaceAll(shortcut,full);
-            fun.fFound = true;
+            //std::cout << " functor " << fun.GetName() << " found - replace " <<  shortcut << " with " << full << " in " << formula << std::endl;
+            // replace all functors
+            Ssiz_t index = formula.Index(shortcut,0);
+            while ( index != kNPOS) {
+               // check that function is not in a namespace and is not in other characters
+               //std::cout << "analyzing " << shortcut << " in " << formula << std::endl;
+               Ssiz_t i2 = index + shortcut.Length();
+               if ( (index > 0) && (isalpha( formula[index-1] )  || formula[index-1] == ':' )) {
+                  index = formula.Index(shortcut,i2);
+                  continue;
+               }
+               if (i2 < formula.Length()  && formula[i2] != '(') {
+                  index = formula.Index(shortcut,i2);
+                  continue;
+               }
+               // now replace the string
+               formula.Replace(index, shortcut.Length(), full);
+               Ssiz_t inext = index + full.Length(); 
+               index = formula.Index(shortcut,inext);
+               fun.fFound = true;
+            }
          }
          if(fun.fName.Contains("::")) // add support for nested namespaces
          {
@@ -1396,7 +1465,10 @@ void TFormula::ProcessFormula(TString &formula)
 
          if(!fun.fFound)
          {
-            Error("TFormula","Could not find %s function with %d argument(s)",fun.GetName(),fun.GetNargs());
+            // ignore not found functions
+            if (gDebug) 
+               Info("TFormula","Could not find %s function with %d argument(s)",fun.GetName(),fun.GetNargs());
+            fun.fFound = false;
          }
       }
       else
@@ -1415,18 +1487,25 @@ void TFormula::ProcessFormula(TString &formula)
             continue;
          }
          // looking for default variables defined in fVars
+
          map<TString,TFormulaVariable>::iterator varsIt = fVars.find(fun.GetName());
          if(varsIt!= fVars.end())
          {
+
             TString name = (*varsIt).second.GetName();
             Double_t value = (*varsIt).second.fValue;
+
+            
             AddVariable(name,value); // this set the cling variable
             if(!fVars[name].fFound)
             {
+
+
                fVars[name].fFound = true;
                int varDim =  (*varsIt).second.fArrayPos;  // variable dimenions (0 for x, 1 for y, 2, for z)
                if (varDim >= fNdim) {
                   fNdim = varDim+1;
+                  
                   // we need to be sure that all other variables are added with position less
                   for ( auto &v : fVars) {
                      if (v.second.fArrayPos < varDim && !v.second.fFound ) {
@@ -1512,19 +1591,9 @@ void TFormula::ProcessFormula(TString &formula)
       }
    }
    //std::cout << "End: formula is " << formula << std::endl;
-   // check that all formula components arematched otherwise emit an error
-   Bool_t allFunctorsMatched = true;
-   for(list<TFormulaFunction>::iterator it = fFuncs.begin(); it != fFuncs.end(); it++)
-   {
-      if(!it->fFound)
-      {
-         allFunctorsMatched = false;
-         Warning("ProcessFormula","\"%s\" has not been matched in the formula expression",it->GetName() );
-         break;
-      }
-   }
 
-   if(!fReadyToExecute && allFunctorsMatched)
+   // ignore case of functors have been matched - try to pass it to Cling
+   if(!fReadyToExecute)
    {
       fReadyToExecute = true;
       Bool_t hasVariables = (fNdim > 0);
@@ -1541,59 +1610,102 @@ void TFormula::ProcessFormula(TString &formula)
       }
       Bool_t hasBoth = hasVariables && hasParameters;
       Bool_t inputIntoCling = (formula.Length() > 0);
-      TString argumentsPrototype =
-         TString::Format("%s%s%s",(hasVariables ? "Double_t *x" : ""), (hasBoth ? "," : ""),
+      if (inputIntoCling) {
+
+         // save copy of inputFormula in a std::strig for the unordered map
+         // and also formula is same as FClingInput typically and it will be modified 
+         std::string inputFormula = std::string(formula); 
+
+         
+         // valid input formula - try to put into Cling
+         TString argumentsPrototype =
+            TString::Format("%s%s%s",(hasVariables ? "Double_t *x" : ""), (hasBoth ? "," : ""),
                         (hasParameters  ? "Double_t *p" : ""));
 
-      // hack for function names created with ++ in doing linear fitter. In this case use a different name
-      // shuld make to all the case where special operator character are use din the name
-      if (fClingName.Contains("++") )
-         fClingName = gNamePrefix + TString("linearFunction_of_") + fClingName;
-      else
-         fClingName = gNamePrefix + fName;
 
-      fClingName.ReplaceAll(" ",""); // remove also white space from function name;
-      // remova also parenthesis
-      fClingName.ReplaceAll("(","_");
-      fClingName.ReplaceAll(")","_");
-      // remove also operators
-      fClingName.ReplaceAll("++","_and_"); // for linear function
-      fClingName.ReplaceAll("+","_plus_");
-      fClingName.ReplaceAll("-","_minus_");
-      fClingName.ReplaceAll("*","_times_");
-      fClingName.ReplaceAll("/","_div_");
+         // set the name for Cling using the hash_function
+         fClingName = gNamePrefix; 
 
-      // Add also an increasing index to function name to make it unique.
-      fClingName = TString::Format("%s__id%d",fClingName.Data(),  gFormulaAtomicIndex++);
+         // check if formula exist already in the map
+         R__LOCKGUARD2(gROOTMutex);
 
-      fClingInput = TString::Format("Double_t %s(%s){ return %s ; }", fClingName.Data(),argumentsPrototype.Data(),formula.Data());
+         auto funcit = gClingFunctions.find(inputFormula);
 
-      //std::cout << "cling input " << fClingInput << std::endl;
+         if (funcit != gClingFunctions.end() ) {
+            fFuncPtr = (  TInterpreter::CallFuncIFacePtr_t::Generic_t) funcit->second;
+            fClingInitialized = true; 
+            inputIntoCling = false;
+         }
+         
+         // set the cling name using hash of the static formulae map
+         auto hasher = gClingFunctions.hash_function();
+         fClingName = TString::Format("%s__id%zu",gNamePrefix.Data(),(unsigned long) hasher(inputFormula) );
 
-      if(inputIntoCling)
-      {
-         InputFormulaIntoCling();
+         fClingInput = TString::Format("Double_t %s(%s){ return %s ; }", fClingName.Data(),argumentsPrototype.Data(),inputFormula.c_str());
+
+         // this is not needed (maybe can be re-added in case of recompilation of identical expressions
+         // // check in case of a change if need to re-initialize
+         // if (fClingInitialized) {
+         //    if (oldClingInput == fClingInput)
+         //       inputIntoCling = false;
+         //    else
+         //       fClingInitialized = false;
+         // }
+
+
+         if(inputIntoCling) {
+            InputFormulaIntoCling();
+            if (fClingInitialized) {
+               // if Cling has been succesfully initialized
+               // dave function ptr in the static map 
+               R__LOCKGUARD2(gROOTMutex);
+               gClingFunctions.insert ( std::make_pair ( inputFormula, (void*) fFuncPtr) );
+            }
+            
+         }
+         else {
+            fAllParametersSetted = true;
+            fClingInitialized = true;
+         }
       }
-      else
-      {
-         fReadyToExecute = true;
-         fAllParametersSetted = true;
-         fClingInitialized = true;
-      }
-
    }
-   // clean up un-used default variables
-   auto itvar = fVars.begin();
-   do
-   {
-      if ( ! itvar->second.fFound ) {
-         //std::cout << "Erase variable " << itvar->first << std::endl;
-         itvar = fVars.erase(itvar);
+      
+
+   // IN case of a Cling Error check components wich are not found in Cling
+   // check that all formula components arematched otherwise emit an error
+   if (!fClingInitialized) { 
+      Bool_t allFunctorsMatched = true;
+      for(list<TFormulaFunction>::iterator it = fFuncs.begin(); it != fFuncs.end(); it++)
+      {
+         if(!it->fFound)
+         {
+            allFunctorsMatched = false;
+            if (it->GetNargs() == 0) 
+               Error("ProcessFormula","\"%s\" has not been matched in the formula expression",it->GetName() );
+            else
+               Error("ProcessFormula","Could not find %s function with %d argument(s)",it->GetName(),it->GetNargs());
+         }
       }
-      else
-         itvar++;
+      if (!allFunctorsMatched) {
+         Error("ProcessFormula","Formula \"%s\" is invalid !", GetExpFormula().Data() );
+         fReadyToExecute = false;
+      }
    }
-   while( itvar != fVars.end() );
+
+   // clean up un-used default variables in case formula is valid
+   if (fClingInitialized && fReadyToExecute) { 
+      auto itvar = fVars.begin();
+      do
+      {
+         if ( ! itvar->second.fFound ) {
+            //std::cout << "Erase variable " << itvar->first << std::endl;
+            itvar = fVars.erase(itvar);
+         }
+         else
+            itvar++;
+      }
+      while( itvar != fVars.end() );
+   }
 
 }
 void TFormula::SetPredefinedParamNames() {
@@ -1626,6 +1738,20 @@ void TFormula::SetPredefinedParamNames() {
       SetParName(2,"Sigma");
       return;
    }
+   if (fNumber == 500) { // crystal-ball
+      SetParName(0,"Constant");
+      SetParName(1,"Mean");
+      SetParName(2,"Sigma");
+      SetParName(3,"Alpha");
+      SetParName(4,"N");
+      return;
+   }
+   if (fNumber == 600) { // breit-wigner
+      SetParName(0,"Constant");
+      SetParName(1,"Mean");
+      SetParName(2,"Gamma");
+      return;
+   }
    // if formula is a polynomial (or chebyshev), set parameter names
    // not needed anymore (p0 is assigned by default)
    // if (fNumber == (300+fNpar-1) ) {
@@ -1656,7 +1782,7 @@ const TObject* TFormula::GetLinearPart(Int_t i) const
    }
    return nullptr;
 }
-void TFormula::AddVariable(const TString &name, Double_t value)
+void TFormula::AddVariable(const TString &name, double value)
 {
    //*-*
    //*-*    Adds variable to known variables, and reprocess formula.
@@ -1684,11 +1810,14 @@ void TFormula::AddVariable(const TString &name, Double_t value)
       TFormulaVariable var(name,value,fVars.size());
       fVars[name] = var;
       fClingVariables.push_back(value);
-      ProcessFormula(fClingInput);
+      if (!fFormula.IsNull() ) {
+         //printf("process formula again - %s \n",fClingInput.Data() );
+         ProcessFormula(fClingInput);
+      }
    }
 
 }
-void TFormula::AddVariables(const pair<TString,Double_t> *vars, const Int_t size)
+void TFormula::AddVariables(const TString *vars, const Int_t size)
 {
    //*-*
    //*-*    Adds multiple variables.
@@ -1702,16 +1831,16 @@ void TFormula::AddVariables(const pair<TString,Double_t> *vars, const Int_t size
    for(Int_t i = 0 ; i < size; ++i)
    {
 
-      pair<TString,Double_t> v = vars[i];
+      const TString & vname = vars[i];
 
-      TFormulaVariable &var = fVars[v.first];
+      TFormulaVariable &var = fVars[vname];
       if(var.fArrayPos < 0)
       {
 
-         var.fName = v.first;
+         var.fName = vname;
          var.fArrayPos = fVars.size();
          anyNewVar = true;
-         var.fValue = v.second;
+         var.fValue = 0;
          if(var.fArrayPos >= (int)fClingVariables.capacity())
          {
             Int_t multiplier = 2;
@@ -1721,15 +1850,15 @@ void TFormula::AddVariables(const pair<TString,Double_t> *vars, const Int_t size
             }
             fClingVariables.reserve(multiplier * fClingVariables.capacity());
          }
-         fClingVariables.push_back(v.second);
+         fClingVariables.push_back(0.0);
       }
-      else
-      {
-         var.fValue = v.second;
-         fClingVariables[var.fArrayPos] = v.second;
-      }
+      // else
+      // {
+      //    var.fValue = v.second;
+      //    fClingVariables[var.fArrayPos] = v.second;
+      // }
    }
-   if(anyNewVar)
+   if(anyNewVar && !fFormula.IsNull())
    {
       ProcessFormula(fClingInput);
    }
@@ -1866,7 +1995,7 @@ void TFormula::DoAddParameter(const TString &name, Double_t value, Bool_t proces
       {
          if(ipos >= (int)fClingParameters.capacity())            
             fClingParameters.reserve( TMath::Max(int(fParams.size()), ipos+1));
-         fClingParameters.insert(fClingParameters.begin()+ipos,ipos+1-fClingParameters.size(),0.0);
+         fClingParameters.insert(fClingParameters.end(),ipos+1-fClingParameters.size(),0.0);
       }
       fClingParameters[ipos] = value;
    }
@@ -1907,10 +2036,10 @@ void TFormula::DoAddParameter(const TString &name, Double_t value, Bool_t proces
 }
 Int_t TFormula::GetParNumber(const char * name) const {
    // return parameter index given a name (return -1 for not existing parameters)
+   // non need to print an error
    auto it = fParams.find(name);
    if(it == fParams.end())
    {
-      Error("GetParameter","Parameter %s is not defined.",name);
       return -1;
    }
    return it->second;
@@ -1922,6 +2051,12 @@ Double_t TFormula::GetParameter(const char * name) const
    //*-*
    //*-*    Returns parameter value given by string.
    //*-*
+   int i = GetParNumber(name);
+   if (i  == -1) {
+      Error("GetParameter","Parameter %s is not defined.",name);
+      return TMath::QuietNaN();
+   }
+      
    return GetParameter( GetParNumber(name) );
 }
 Double_t TFormula::GetParameter(Int_t param) const
@@ -1934,7 +2069,7 @@ Double_t TFormula::GetParameter(Int_t param) const
    if(param >=0 && param < (int) fClingParameters.size())
       return fClingParameters[param];
    Error("GetParameter","wrong index used - use GetParameter(name)");
-   return 0;
+   return TMath::QuietNaN(); 
 }
 const char * TFormula::GetParName(Int_t ipar) const
 {
@@ -2204,7 +2339,7 @@ Double_t TFormula::DoEval(const double * x, const double * params) const
 
    if(!fReadyToExecute)
    {
-      Error("Eval","Formula not ready to execute. Missing parameters/variables");
+      Error("Eval","Formula is invalid and not ready to execute ");
       for(auto it = fFuncs.begin(); it != fFuncs.end(); ++it)
       {
          TFormulaFunction fun = *it;
@@ -2217,7 +2352,7 @@ Double_t TFormula::DoEval(const double * x, const double * params) const
    }
    // this is needed when reading from a file
    if (!fClingInitialized) {
-      Error("Eval","Formula is not properly initialized - call TFormula::Compile");
+      Error("Eval","Formula is invalid or not properly initialized - try calling TFormula::Compile");
       return TMath::QuietNaN();
 #ifdef EVAL_IS_NOT_CONST      
       // need to replace in cling the name of the pointer of this object 
@@ -2242,14 +2377,14 @@ Double_t TFormula::DoEval(const double * x, const double * params) const
    return result;
 }
 
-//______________________________________________________________________________
+////////////////////////////////////////////////////////////////////////////////
+/// return the expression formula
+/// If option = "P" replace the parameter names with their values
+/// If option = "CLING" return the actual expression used to build the function  passed to cling
+/// If option = "CLINGP" replace in the CLING expression the parameter with their values 
+
 TString TFormula::GetExpFormula(Option_t *option) const
 {
-   // return the expression formula
-   // If option = "P" replace the parameter names with their values
-   // If option = "CLING" return the actual expression used to build the function  passed to cling
-   // If option = "CLINGP" replace in the CLING expression the parameter with their values 
-
    TString opt(option);
    if (opt.IsNull() ) return fFormula;
    opt.ToUpper();
@@ -2260,9 +2395,9 @@ TString TFormula::GetExpFormula(Option_t *option) const
    // }
 
    if (opt.Contains("CLING") ) {
-      std::string clingFunc = fClingInput.Data();      
+      std::string clingFunc = fClingInput.Data();
       std::size_t found = clingFunc.find("return");
-      std::size_t found2 = clingFunc.rfind(";"); 
+      std::size_t found2 = clingFunc.rfind(";");
       if (found == std::string::npos || found2 == std::string::npos) {
          Error("GetExpFormula","Invalid Cling expression - return default formula expression");
          return fFormula; 
@@ -2306,7 +2441,7 @@ TString TFormula::GetExpFormula(Option_t *option) const
                return expFormula;                   
             }
             TString parName = expFormula(i+1,j-i-1);
-            TString replacement = TString::Format("%f",GetParameter(parName));
+            TString replacement = TString::Format("%g",GetParameter(parName));
             expFormula.Replace(i,j-i+1, replacement );
             i += replacement.Length();
          }
@@ -2317,10 +2452,11 @@ TString TFormula::GetExpFormula(Option_t *option) const
    Warning("GetExpFormula","Invalid option - return defult formula expression");
    return fFormula; 
 }   
-//______________________________________________________________________________
+////////////////////////////////////////////////////////////////////////////////
+/// print the formula and its attributes
+
 void TFormula::Print(Option_t *option) const
 {
-   // print the formula and its attributes
    printf(" %20s : %s Ndim= %d, Npar= %d, Number= %d \n",GetName(),GetTitle(), fNdim,fNpar,fNumber);
    printf(" Formula expression: \n");
    printf("\t%s \n",fFormula.Data() );
@@ -2358,7 +2494,7 @@ void TFormula::Print(Option_t *option) const
          TFormulaFunction fun = *it;
          if(!fun.fFound)
          {
-            printf("%s is uknown.\n",fun.GetName());
+            printf("%s is unknown.\n",fun.GetName());
          }
       }
    }
@@ -2379,10 +2515,11 @@ void TFormula::Print(Option_t *option) const
 
 
 }
-//______________________________________________________________________________
+////////////////////////////////////////////////////////////////////////////////
+/// Stream a class object.
+
 void TFormula::Streamer(TBuffer &b)
 {
-   // Stream a class object.
    if (b.IsReading() ) {
       UInt_t R__s, R__c;
       Version_t v = b.ReadVersion(&R__s, &R__c);
@@ -2433,8 +2570,7 @@ void TFormula::Streamer(TBuffer &b)
 
          //std::cout << "Streamer::after pre-process the formula " << fFormula << " ndim = " << fNdim << " npar = " << fNpar << std::endl;
 
-         fClingInput = fFormula;
-         PrepareFormula(fClingInput);
+         PrepareFormula(fFormula);
 
          //std::cout << "Streamer::after prepared " << fClingInput << " ndim = " << fNdim << " npar = " << fNpar << std::endl;
 

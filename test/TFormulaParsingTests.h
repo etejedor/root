@@ -261,7 +261,7 @@ bool test14()  {
    // test GetExpFormula
    TFormula f("f","[2] + [0]*x + [1]*x*x");
    f.SetParameters(1,2,3);
-   return (f.GetExpFormula("P") == TString("3.000000+1.000000*x+2.000000*x*x"));
+   return (f.GetExpFormula("P") == TString("3+1*x+2*x*x"));
 }
 bool test15()  {
    // test GetExpFormula
@@ -378,6 +378,84 @@ bool test24() {
    return ok;
 }
 
+bool test25() {
+   // fix parsing of operator^ (ROOT-7349)
+   bool ok = true; 
+   TF1 f1("f1","x^-2.5");
+   ok &= (f1.Eval(3.) == TMath::Power(3,-2.5) );
+
+   TF1 f2("f2","x^+2.5");
+   //TF1 f3("f3","std::pow(x,2.5)");  // this needed to be fixed
+   TF1 f3("f3","TMath::Power(x,2.5)");
+   ok &= (f2.Eval(3.) == f3.Eval(3) );
+
+   //cms test
+   TF1 t1("t1","(x<190)?(-18.7813+(((2.49368+(10.3321/(x^0.881126)))*exp(-((x^-1.66603)/0.074916)))-(-17.5757*exp(-((x^-1464.26)/-7.94004e+06))))):(1.09984+(0.394544*exp(-(x/562.407))))");
+   double x = 2;
+   double y =(x<190)?(-18.7813+(((2.49368+(10.3321/(std::pow(x,0.881126))))*exp(-((std::pow(x,-1.66603))/0.074916)))-(-17.5757*exp(-((std::pow(x,-1464.26))/-7.94004e+06))))):(1.09984+(0.394544*exp(-(x/562.407))));
+   ok &= (t1.Eval(2) == y );
+
+   // tests with scientific notations
+   auto ff = new TFormula("ff","x+2.e-2^1.2e-1");
+   ok &= ( ff->Eval(1.) == (1. + std::pow(2.e-2,1.2e-1) ) );
+
+   ff = new TFormula("ff","x^-1.2e1");
+   ok &= ( ff->Eval(1.5) == std::pow(1.5,-1.2e1) ) ;
+
+   ff = new TFormula("ff","1.5e2^x");
+   ok &= ( ff->Eval(2) == std::pow(1.5e2,2) );
+
+   ff = new TFormula("ff","1.5e2^x^-1.1e-2");
+   ok &= ( ff->Eval(2.) == std::pow(1.5e2, std::pow(2,-1.1e-2) ) );
+
+   // test same prelacements
+   ff = new TFormula("ff","pol10(3)+pol2");
+   std::vector<double> p = {1,2,3,4,5,6,7,8,9,10,11,12,13,14};
+   ff->SetParameters(p.data() );
+   double sum = 0; for (auto &a : p) { sum+= a;} 
+   ok &= ( ff->Eval(1.) == sum );
+
+   return ok;   
+}
+
+bool test26() {
+   // test sign function
+   bool ok = true;  
+   TF1 f("f","x*sign(1.,x+2.)");
+   ok &= (f.Eval(2) == 2);
+   ok &= (f.Eval(-1) == -1);
+   ok &= (f.Eval(-3) == 3);
+   TF1 f2("f2","x*TMath::Sign(1,x+2)");
+   ok &= (f2.Eval(2) == 2);
+   ok &= (f2.Eval(-1) == -1);
+   ok &= (f2.Eval(-3) == 3);
+   TF1 f3("f3","TMath::SignBit(x-2)");
+   ok &= (f3.Eval(1) == 1);
+   ok &= (f3.Eval(3) == 0);
+   return ok;
+}
+
+bool test27() {
+   // test ssq function
+   bool ok = true;  
+   TF1 f1("f1","x+sq(x+2)+sq(x+[0])");
+   TF1 f2("f2","x+(x+2)^2+(x+[0])^2");
+   f1.SetParameter(0,3); f2.SetParameter(0,3);
+   ok &= (f1.Eval(2) == f2.Eval(2));
+   ok &= (f1.Eval(-4) == f2.Eval(-4));
+   // test nested expressions and conflict with sqrt
+   TF1 f3("f3","sqrt(1.+sq(x))");
+   ok &= (f3.Eval(2) == sqrt(5) );
+   TF1 f4("f4","sq(1.+std::sqrt(x))");
+   ok &= (f4.Eval(2) == TMath::Sq(1.+sqrt(2)) );
+   TF1 f5("f5","sqrt(((TMath::Sign(1,[0])*sq([0]/x))+(sq([1])*(x^([3]-1))))+sq([2]))");
+   auto func = [](double *x, double *p){ return TMath::Sqrt(((TMath::Sign(1,p[0])*TMath::Sq(p[0]/x[0]))+(TMath::Sq(p[1])*(TMath::Power(x[0],(p[3]-1)))))+TMath::Sq(p[2])); };
+   TF1 f6("f6",func,-10,10,4);
+   f5.SetParameters(-1,2,3,4); f6.SetParameters(f5.GetParameters());
+   ok &= (f5.Eval(2) == f6.Eval(2) );
+   return ok;
+}
+   
 void PrintError(int itest)  { 
    Error("TFormula test","test%d FAILED ",itest);
    failedTests.push_back(itest);
@@ -419,6 +497,9 @@ int runTests(bool debug = false) {
    IncrTest(itest); if (!test22() ) { PrintError(itest); }
    IncrTest(itest); if (!test23() ) { PrintError(itest); }
    IncrTest(itest); if (!test24() ) { PrintError(itest); }
+   IncrTest(itest); if (!test25() ) { PrintError(itest); }
+   IncrTest(itest); if (!test26() ) { PrintError(itest); }
+   IncrTest(itest); if (!test27() ) { PrintError(itest); }
 
    std::cout << ".\n";
     

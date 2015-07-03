@@ -96,7 +96,7 @@ namespace cling {
     /// and before the calling framework has any change of taking back/again
     /// its lock protecting the access to cling, so we need to explicit protect
     /// again multiple conccurent access.
-    std::atomic_flag m_AtExitFuncsSpinLock = ATOMIC_FLAG_INIT;
+    std::atomic_flag m_AtExitFuncsSpinLock; // MSVC doesn't support = ATOMIC_FLAG_INIT;
 
     typedef llvm::SmallVector<CXAAtExitElement, 128> AtExitFunctions;
     ///\brief Static object, which are bound to unloading of certain declaration
@@ -153,8 +153,13 @@ namespace cling {
     }
 
     ///\brief Unload a set of JIT symbols.
-    void unloadFromJIT(Transaction::ExeUnloadHandle H) {
-      m_JIT->removeModules((size_t)H.m_Opaque);
+    void unloadFromJIT(llvm::Module* M,
+                       Transaction::ExeUnloadHandle H) {
+      auto iMod = std::find(m_ModulesToJIT.begin(), m_ModulesToJIT.end(), M);
+      if (iMod != m_ModulesToJIT.end())
+        m_ModulesToJIT.erase(iMod);
+      else
+        m_JIT->removeModules((size_t)H.m_Opaque);
     }
 
     ///\brief Run the static initializers of all modules collected to far.

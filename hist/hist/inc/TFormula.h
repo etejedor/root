@@ -48,6 +48,12 @@ public:
    : fName(name),fBody(""),fNargs(0),fFound(false),fFuncCall(false){}
    Bool_t operator<(const TFormulaFunction &rhv) const
    {
+      // order by length - first the longer ones to avoid replacing wrong functions 
+      if ( fName.Length() > rhv.fName.Length() )
+         return true;
+      else if ( fName.Length() > rhv.fName.Length() )
+         return false;
+      // case of equal length
       return fName < rhv.fName && fBody < rhv.fBody;
    }
    Bool_t operator==(const TFormulaFunction &rhv) const
@@ -99,13 +105,13 @@ private:
    TInterpreter::CallFuncIFacePtr_t::Generic_t fFuncPtr;   //!  function pointer
 
    void     InputFormulaIntoCling();
-   void     PrepareEvalMethod();
+   Bool_t   PrepareEvalMethod();
    void     FillDefaults();
    void     HandlePolN(TString &formula);
    void     HandleParametrizedFunctions(TString &formula);
    void     HandleExponentiation(TString &formula);
    void     HandleLinear(TString &formula);
-   Bool_t   IsDefaultVariableName(const TString &name);
+   static Bool_t   IsDefaultVariableName(const TString &name);
 protected:
 
    std::list<TFormulaFunction>         fFuncs;    //!
@@ -119,9 +125,10 @@ protected:
    Int_t                          fNumber;  //!
    std::vector<TObject*>          fLinearParts;  // vector of linear functions
 
-   Bool_t IsOperator(const char c);
-   Bool_t IsBracket(const char c);
-   Bool_t IsFunctionNameChar(const char c);
+   static Bool_t IsOperator(const char c);
+   static Bool_t IsBracket(const char c);
+   static Bool_t IsFunctionNameChar(const char c);
+   static Bool_t IsScientificNotation(const TString & formula, int ipos);
    void   ExtractFunctors(TString &formula);
    void   PreProcessFormula(TString &formula);
    void   ProcessFormula(TString &formula);
@@ -146,13 +153,13 @@ public:
                   TFormula();
    virtual        ~TFormula();
    TFormula&      operator=(const TFormula &rhs);
-   TFormula(const TString &name, TString formula, bool addToGlobList = true);
+   TFormula(const char *name, const char * formula = "", bool addToGlobList = true);
                   TFormula(const TFormula &formula);
    //               TFormula(const char *name, Int_t nparams, Int_t ndims);
 
-   void           AddParameter(const TString &name, Double_t value) { DoAddParameter(name,value,true); }
-   void           AddVariable(const TString &name, Double_t value);
-   void           AddVariables(const std::pair<TString,Double_t> *vars, const Int_t size);
+   void           AddParameter(const TString &name, Double_t value = 0) { DoAddParameter(name,value,true); }
+   void           AddVariable(const TString &name, Double_t value = 0);
+   void           AddVariables(const TString *vars, const Int_t size);
    Int_t          Compile(const char *expression="");
    virtual void   Copy(TObject &f1) const;
    virtual void   Clear(Option_t * option="");
@@ -175,7 +182,7 @@ public:
    Double_t       GetVariable(const char *name) const;
    Int_t          GetVarNumber(const char *name) const;
    TString        GetVarName(Int_t ivar) const;
-   Bool_t         IsValid() const { return fReadyToExecute; }
+   Bool_t         IsValid() const { return fReadyToExecute && fClingInitialized; }
    Bool_t         IsLinear() const { return TestBit(kLinear); }
    void           Print(Option_t *option = "") const;
    void           SetName(const char* name);
