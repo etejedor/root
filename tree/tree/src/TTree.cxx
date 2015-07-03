@@ -382,6 +382,8 @@
 #include <limits.h>
 #include <thread>
 #include <mutex>
+#include <iostream>
+
 
 #include "tbb/parallel_for.h"
 //#include "tbb/task_group.h"
@@ -610,7 +612,7 @@ Long64_t TTree::TClusterIterator::Next()
 }
 
 
-void TTree::CreateGraph() {
+/*void TTree::CreateGraph() {
 	canvas = new TCanvas("c1","Correlation Graph",200,10,700,500);
 	canvas->SetGrid();
 	graph = new TGraph();
@@ -620,7 +622,7 @@ void TTree::CreateGraph() {
         graph->GetXaxis()->SetTitle("Branch size (bytes)");
 	graph->GetYaxis()->SetTitle("Task time (us)");
 	graph->Draw("AP");
-}
+}*/
 
 //
 //------------------------------------------------------------------------------
@@ -688,8 +690,12 @@ TTree::TTree()
 , fTaskGroup(0)
 , fTaskParent(0)
 , fBSizes()
-, graph()
-, canvas()
+//, graph()
+//, canvas()
+, branch_times(0)
+, task_data_file(0)
+, task_data_tree(0)
+, recording(kFALSE)
 {
    // Default constructor and I/O constructor.
    //
@@ -709,7 +715,7 @@ TTree::TTree()
    fTaskParent = new( tbb::task::allocate_root() ) tbb::empty_task;
    R__EXTRAE_INIT();
 
-   CreateGraph();
+   //CreateGraph();
 }
 
 //______________________________________________________________________________
@@ -772,8 +778,12 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
 , fTaskGroup(0)
 , fTaskParent(0)
 , fBSizes()
-, graph()
-, canvas()
+//, graph()
+//, canvas()
+, branch_times(0)
+, task_data_file(0)
+, task_data_tree(0)
+, recording(kFALSE)
 {
    // Normal tree constructor.
    //
@@ -827,7 +837,7 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
    fTaskParent = new( tbb::task::allocate_root() ) tbb::empty_task;
    R__EXTRAE_INIT();
 
-   CreateGraph();
+   //CreateGraph();
 }
 
 //______________________________________________________________________________
@@ -923,13 +933,15 @@ TTree::~TTree()
    fTaskParent->destroy(*fTaskParent);
    R__EXTRAE_END();
    
-   graph->GetXaxis()->SetTitle("Branch size (bytes)");
+   delete[] branch_times;
+
+   /*graph->GetXaxis()->SetTitle("Branch size (bytes)");
    graph->GetYaxis()->SetTitle("Task time (us)");
    graph->GetYaxis()->SetTitleOffset(1.4);
    canvas->Update();
    canvas->Print("/home/etejedor/apps/ttree_iter_cms/graph.png");
    delete graph;
-   delete canvas;
+   delete canvas;*/
 }
 
 //______________________________________________________________________________
@@ -5024,6 +5036,44 @@ void TTree::SortBranches()
              {
                  return a.first > b.first;
              });
+
+   branch_times = new Long64_t[nbranches]();
+}
+
+//______________________________________________________________________________
+void TTree::SortBranchesByTime()
+{
+   Int_t nbranches = fBranches.GetEntriesFast();
+   for (Int_t i = 0; i < nbranches; i++)  {
+	   /*TBranch* branch = fBSizes.at(i).second;
+	   printf("Branch %s had weight of %lld\n", branch->GetName(), fBSizes.at(i).first);*/
+	   fBSizes.at(i).first = branch_times[i] / 100;
+	   branch_times[i] = 0LL;
+           //printf("Branch %s has NOW weight of %lld\n", branch->GetName(), fBSizes.at(i).first);
+   }
+   //printf("\n");
+
+   std::sort(fBSizes.begin(),
+		     fBSizes.end(),
+             [](std::pair<Long64_t,TBranch*> a, std::pair<Long64_t,TBranch*> b)
+             {
+                 return a.first > b.first;
+             });
+}
+
+
+//______________________________________________________________________________
+void TTree::ActivateRecording()
+{
+   recording = kTRUE;
+}
+
+//______________________________________________________________________________
+void TTree::WriteTaskData()
+{
+   task_data_file->Write();
+   task_data_file->Close();
+   delete task_data_file;
 }
 
 
@@ -5192,21 +5242,18 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
    Int_t nbranches = fBranches.GetEntriesFast();
    Int_t nb=0;
 
-   static int npos = 0;
-   static std::mutex mutex;
-
    /*fBSizes.clear();
    SortBranches();*/
 
    // SEQUENTIAL
-   /*TBranch *branch;
+   TBranch *branch;
    Int_t nbytes = 0;
    for (i=0;i<nbranches;i++)  {
       branch = (TBranch*)fBranches.UncheckedAt(i);
       nb = branch->GetEntry(entry, getall);
       if (nb < 0) return nb;
       nbytes += nb;
-   }*/
+   }
 
    // THREADS
    /*std::atomic<Int_t> nbytes;
@@ -5386,22 +5433,40 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
    }
    fTaskParent->wait_for_all();
    if (err_nb < 0) return err_nb;*/
-
-
-   // TBB TASKS FIFO atomic 
+#if 0
+   // TBB TASKS FIFO atomic
+   static Int_t event_num;
+   static Long64_t task_time;
+   static Long64_t branch_size;
+   static std::string branch_name;
+   static std::string branch_type;
+   static Bool_t first_run = kTRUE;
+   /*if (first_run && recording) {
+	   task_data_file = new TFile("/home/etejedor/apps/ttree_iter_cms/task_data.root","RECREATE");
+	   task_data_tree = new TTree("Task_data", "Tree that stores task data");
+	   task_data_tree->Branch("eventnum",&event_num,"eventnum/I");
+	   task_data_tree->Branch("tasktime",&task_time,"tasktime/L");
+	   task_data_tree->Branch("branchsize",&branch_size,"branchsize/L");
+	   task_data_tree->Branch("branchname", &branch_name);
+	   task_data_tree->Branch("branchtype", &branch_type);
+	   first_run = kFALSE;
+   }*/
+   static Int_t visited = 0;
+   //static int npos = 0;
+   static std::mutex mutex;
    std::atomic<Int_t> pos = {0};
    std::atomic<Int_t> nbytes;
    Int_t err_nb = 0;
    for (i=0;i<nbranches;i++)  {
-       fTaskGroup->run([&]() {
+	   fTaskGroup->run([&]() {
     	   struct timeval stop, start;
-           Double_t time;
+           Long64_t time;
            gettimeofday(&start, NULL);
 
            R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
            thread_local TThread thread_guard;
            Int_t nb=0;
-           Int_t j = pos.fetch_add(1); 
+           Int_t j = pos.fetch_add(1);
            TBranch *branch = fBSizes.at(j).second;
            //printf("Processing Branch %s with size %lld\n", branch->GetName(), fBSizes.at(j).first);
            nb = branch->GetEntry(entry, getall);
@@ -5410,16 +5475,31 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
            R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
 
            gettimeofday(&stop, NULL);
-           time = (stop.tv_sec - start.tv_sec)*1.0E06 + (stop.tv_usec - start.tv_usec);
-           std::lock_guard<std::mutex> lock(mutex);
-           graph->SetPoint(npos++, (Double_t)fBSizes.at(j).first, time);
+           time = (stop.tv_sec - start.tv_sec)*1E06 + (stop.tv_usec - start.tv_usec);
+           //printf("1 Branch times %d is %lld -- %f -- %lld\n", j, branch_times[j], (Double_t)time, time);
+           branch_times[j] += time;
+           //printf("2 Branch times %d is %lld -- %f -- %lld\n", j, branch_times[j], (Double_t)time, time);
+           //std::lock_guard<std::mutex> lock(mutex);
+           //graph->SetPoint(npos++, (Double_t)fBSizes.at(j).first, (Double_t)time);
+
+           /*std::lock_guard<std::mutex> lock(mutex);
+           event_num = entry;
+           task_time = time;
+           branch_size = fBSizes.at(j).first;
+           branch_name = branch->GetName();
+           branch_type = branch->GetClassName();*/
+           //printf("DATA: task time %lld branch size %lld branch name %s branch type %s\n", task_time, branch_size, branch_name.c_str(), branch_type.c_str());
+           //if (recording) task_data_tree->Fill();
        });
    }
    fTaskGroup->wait();
    if (err_nb < 0) return err_nb;
    //printf("\n");
-
-
+   if (++visited == 100) {
+	   SortBranchesByTime();
+	   visited = 0;
+   }
+#endif
    // GetEntry in list of friends
    if (!fFriends) return nbytes;
    TFriendLock lock(this,kGetEntry);

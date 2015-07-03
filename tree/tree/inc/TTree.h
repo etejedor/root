@@ -165,8 +165,12 @@ protected:
    tbb::task_group *fTaskGroup;		  //! Group for parallel TBB subtasks created in the I/O of this tree
    tbb::task * fTaskParent;           //! Parent for low-level API tasks
    std::vector<std::pair<Long64_t,TBranch*>> fBSizes; //! Branches sorted by size
-   TGraph *graph;
-   TCanvas *canvas;
+   //TGraph *graph;
+   //TCanvas *canvas;
+   Long64_t         *branch_times;
+   TFile *task_data_file;
+   TTree *task_data_tree;
+   Bool_t recording;
 
    static Int_t     fgBranchStyle;      //  Old/New branch style
    static Long64_t  fgMaxTreeSize;      //  Maximum size of a file containg a Tree
@@ -571,6 +575,9 @@ public:
    virtual void            SetUpdate(Int_t freq = 0) { fUpdate = freq; }
    virtual void            Show(Long64_t entry = -1, Int_t lenmax = 20);
    virtual void            SortBranches();
+   virtual void            SortBranchesByTime();
+   virtual void            ActivateRecording();
+   virtual void            WriteTaskData();
    virtual void            StartViewer(); // *MENU*
    virtual Int_t           StopCacheLearningPhase();
    virtual Int_t           UnbinnedFit(const char* funcname, const char* varexp, const char* selection = "", Option_t* option = "", Long64_t nentries = 1000000000, Long64_t firstentry = 0);
