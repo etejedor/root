@@ -391,6 +391,30 @@
 
 #include <sys/time.h>
 
+/*#define TBB_PREVIEW_LOCAL_OBSERVER 1
+#include "tbb/task_scheduler_observer.h"
+#include <sched.h>
+
+class pinning_observer: public tbb::task_scheduler_observer {
+  std::atomic<Int_t> core = {0};
+public:
+  pinning_observer() {
+	observe(true); // activate the observer
+  }
+  void on_scheduler_entry( bool worker ) {
+    Int_t my_core = core.fetch_add(1);
+    printf("Core is %d...", my_core);
+    cpu_set_t my_mask;
+    CPU_ZERO(&my_mask);
+    CPU_SET(my_core, &my_mask);
+    sched_setaffinity(0, sizeof(cpu_set_t), &my_mask);
+    printf("Set affinity for thread %d with mask %d\n", std::this_thread::get_id(), my_mask, my_core);
+  }
+  void on_scheduler_exit( bool worker ) { }
+};
+
+pinning_observer obs;*/
+
 Int_t    TTree::fgBranchStyle = 1;  // Use new TBranch style with TBranchElement.
 Long64_t TTree::fgMaxTreeSize = 100000000000LL;
 
@@ -700,9 +724,9 @@ TTree::TTree()
 //, graph()
 //, canvas()
 , branch_times(0)
-, task_data_file(0)
-, task_data_tree(0)
-, recording(kFALSE)
+//, task_data_file(0)
+//, task_data_tree(0)
+//, recording(kFALSE)
 {
    fMaxEntries = 1000000000;
    fMaxEntries *= 1000;
@@ -792,9 +816,9 @@ TTree::TTree(const char* name, const char* title, Int_t splitlevel /* = 99 */)
 //, graph()
 //, canvas()
 , branch_times(0)
-, task_data_file(0)
-, task_data_tree(0)
-, recording(kFALSE)
+//, task_data_file(0)
+//, task_data_tree(0)
+//, recording(kFALSE)
 {
    // TAttLine state.
    SetLineColor(gStyle->GetHistLineColor());
@@ -5029,6 +5053,7 @@ Long64_t TTree::GetEntriesFriend() const
 void TTree::SortBranches()
 {
    Int_t nbranches = fBranches.GetEntriesFast();
+   //printf("Tree has %d branches\n", nbranches);
    for (Int_t i = 0; i < nbranches; i++)  {
        Long64_t bbytes = 0;
        TBranch* branch = (TBranch*)fBranches.UncheckedAt(i);
@@ -5056,7 +5081,7 @@ void TTree::SortBranchesByTime()
 	   printf("Branch %s had weight of %lld\n", branch->GetName(), fBSizes.at(i).first);*/
 	   fBSizes.at(i).first = branch_times[i] / 100;
 	   branch_times[i] = 0LL;
-           //printf("Branch %s has NOW weight of %lld\n", branch->GetName(), fBSizes.at(i).first);
+       //printf("Branch %s has NOW weight of %lld\n", branch->GetName(), fBSizes.at(i).first);
    }
    //printf("\n");
 
@@ -5072,15 +5097,15 @@ void TTree::SortBranchesByTime()
 //______________________________________________________________________________
 void TTree::ActivateRecording()
 {
-   recording = kTRUE;
+   //recording = kTRUE;
 }
 
 //______________________________________________________________________________
 void TTree::WriteTaskData()
 {
-   task_data_file->Write();
+   /*task_data_file->Write();
    task_data_file->Close();
-   delete task_data_file;
+   delete task_data_file;*/
 }
 
 
@@ -5227,7 +5252,6 @@ public:
 
 Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
 {
-
    // We already have been visited while recursively looking
    // through the friends tree, let return
    if (kGetEntry & fFriendLockStatus) return 0;
@@ -5253,14 +5277,14 @@ Int_t TTree::GetEntry(Long64_t entry, Int_t getall)
    SortBranches();*/
 
    // SEQUENTIAL
-   TBranch *branch;
+   /*TBranch *branch;
    Int_t nbytes = 0;
    for (i=0;i<nbranches;i++)  {
       branch = (TBranch*)fBranches.UncheckedAt(i);
       nb = branch->GetEntry(entry, getall);
       if (nb < 0) return nb;
       nbytes += nb;
-   }
+   }*/
 
    // THREADS
    /*std::atomic<Int_t> nbytes;
@@ -5440,15 +5464,15 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
    }
    fTaskParent->wait_for_all();
    if (err_nb < 0) return err_nb;*/
-#if 0
+
    // TBB TASKS FIFO atomic
-   static Int_t event_num;
+   /*static Int_t event_num;
    static Long64_t task_time;
    static Long64_t branch_size;
    static std::string branch_name;
    static std::string branch_type;
    static Bool_t first_run = kTRUE;
-   /*if (first_run && recording) {
+   if (first_run && recording) {
 	   task_data_file = new TFile("/home/etejedor/apps/ttree_iter_cms/task_data.root","RECREATE");
 	   task_data_tree = new TTree("Task_data", "Tree that stores task data");
 	   task_data_tree->Branch("eventnum",&event_num,"eventnum/I");
@@ -5458,9 +5482,11 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
 	   task_data_tree->Branch("branchtype", &branch_type);
 	   first_run = kFALSE;
    }*/
-   static Int_t visited = 0;
    //static int npos = 0;
-   static std::mutex mutex;
+   //static std::mutex mutex;
+
+   static Int_t visited = 0;
+
    std::atomic<Int_t> pos = {0};
    std::atomic<Int_t> nbytes;
    Int_t err_nb = 0;
@@ -5470,7 +5496,7 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
            Long64_t time;
            gettimeofday(&start, NULL);
 
-           R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+           //R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
            thread_local TThread thread_guard;
            Int_t nb=0;
            Int_t j = pos.fetch_add(1);
@@ -5479,10 +5505,11 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
            nb = branch->GetEntry(entry, getall);
            if (nb < 0) err_nb = nb;
            else        nbytes += nb;
-           R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+           //R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
 
            gettimeofday(&stop, NULL);
            time = (stop.tv_sec - start.tv_sec)*1E06 + (stop.tv_usec - start.tv_usec);
+
            //printf("1 Branch times %d is %lld -- %f -- %lld\n", j, branch_times[j], (Double_t)time, time);
            branch_times[j] += time;
            //printf("2 Branch times %d is %lld -- %f -- %lld\n", j, branch_times[j], (Double_t)time, time);
@@ -5494,9 +5521,9 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
            task_time = time;
            branch_size = fBSizes.at(j).first;
            branch_name = branch->GetName();
-           branch_type = branch->GetClassName();*/
+           branch_type = branch->GetClassName();
            //printf("DATA: task time %lld branch size %lld branch name %s branch type %s\n", task_time, branch_size, branch_name.c_str(), branch_type.c_str());
-           //if (recording) task_data_tree->Fill();
+           if (recording) task_data_tree->Fill();*/
        });
    }
    fTaskGroup->wait();
@@ -5506,7 +5533,8 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
 	   SortBranchesByTime();
 	   visited = 0;
    }
-#endif
+
+
    // GetEntry in list of friends
    if (!fFriends) return nbytes;
    TFriendLock lock(this,kGetEntry);

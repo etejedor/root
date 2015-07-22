@@ -493,9 +493,9 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
       Int_t st = 0;
       {
          R__LOCKGUARD2(gROOTMutex);
-         R__EXTRAE_EVENT(CACHE_READ, START_GENERIC);
+         //R__EXTRAE_EVENT(CACHE_READ, START_GENERIC);
          st = pf->ReadBuffer(readBufferRef->Buffer(),pos,len);
-         R__EXTRAE_EVENT(CACHE_READ, END_GENERIC);
+         //R__EXTRAE_EVENT(CACHE_READ, END_GENERIC);
       }
       if (st < 0) {
          return 1;
@@ -595,9 +595,9 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
             goto AfterBuffer;
          }
 
-         R__EXTRAE_EVENT(UNZIP, START_GENERIC);
+         //R__EXTRAE_EVENT(UNZIP, START_GENERIC);
          R__unzip(&nin, rawCompressedObjectBuffer, &nbuf, (unsigned char*) rawUncompressedObjectBuffer, &nout);
-         R__EXTRAE_EVENT(UNZIP, END_GENERIC);
+         //R__EXTRAE_EVENT(UNZIP, END_GENERIC);
          if (!nout) break;
          noutot += nout;
          nintot += nin;

@@ -168,9 +168,9 @@ protected:
    //TGraph *graph;
    //TCanvas *canvas;
    Long64_t         *branch_times;
-   TFile *task_data_file;
-   TTree *task_data_tree;
-   Bool_t recording;
+   //TFile *task_data_file;
+   //TTree *task_data_tree;
+   //Bool_t recording;
 
    static Int_t     fgBranchStyle;      //  Old/New branch style
    static Long64_t  fgMaxTreeSize;      //  Maximum size of a file containg a Tree

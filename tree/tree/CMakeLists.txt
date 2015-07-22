@@ -5,6 +5,7 @@
 
 set(libname Tree)
 
+
 ROOT_USE_PACKAGE(io/io)
 ROOT_USE_PACKAGE(net/net)
 ROOT_USE_PACKAGE(math/mathcore)
@@ -19,6 +20,10 @@ ROOT_GENERATE_DICTIONARY(G__${libname} *.h MODULE ${libname} LINKDEF LinkDef.h O
 INCLUDE_DIRECTORIES(${TBB_INCLUDE_DIRS})
 
 # TODO: REMOVE HIST and GPAD DEPS!!!!!
-ROOT_LINKER_LIBRARY(${libname} *.cxx G__${libname}.cxx LIBRARIES ${TBB_LIBRARY_RELEASE} DEPENDENCIES ExtraeInstrumenter Net RIO Thread Hist Gpad)
+MESSAGE( STATUS "TBB_INCLUDE_DIRS: " ${TBB_INCLUDE_DIRS} )
+MESSAGE( STATUS "TBB_LIBRARIES: " ${TBB_LIBRARIES} )
+#ROOT_LINKER_LIBRARY(${libname} *.cxx G__${libname}.cxx LIBRARIES ${TBB_LIBRARY_RELEASE} DEPENDENCIES ExtraeInstrumenter Net RIO Thread Hist Gpad)
+ROOT_LINKER_LIBRARY(${libname} *.cxx G__${libname}.cxx LIBRARIES ${TBB_LIBRARIES} DEPENDENCIES ExtraeInstrumenter Net RIO Thread Hist Gpad)
 ROOT_INSTALL_HEADERS()
 
+ADD_DEPENDENCIES(${libname} TBB)
