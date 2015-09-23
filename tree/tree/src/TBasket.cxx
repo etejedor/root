@@ -23,6 +23,9 @@
 #include "TVirtualMutex.h"
 #include "TExtraeInstrumenter.h"
 
+#include "TPapi.h"
+#include <papi.h>
+
 
 // TODO: Copied from TBranch.cxx
 #if (__GNUC__ >= 3) || defined(__INTEL_COMPILER)
@@ -596,7 +599,16 @@ Int_t TBasket::ReadBasketBuffers(Long64_t pos, Int_t len, TFile *file)
          }
 
          //R__EXTRAE_EVENT(UNZIP, START_GENERIC);
+         /*if (PAPI_is_initialized())
+         if (PAPI_reset(TPapi::EventSet) != PAPI_OK)
+            fprintf(stderr, "PAPI reset error!\n");*/
+
          R__unzip(&nin, rawCompressedObjectBuffer, &nbuf, (unsigned char*) rawUncompressedObjectBuffer, &nout);
+
+         /*if (PAPI_is_initialized())
+         if (PAPI_accum(TPapi::EventSet, TPapi::tv_unzip) != PAPI_OK)
+            fprintf(stderr, "PAPI accum error!\n");*/
+
          //R__EXTRAE_EVENT(UNZIP, END_GENERIC);
          if (!nout) break;
          noutot += nout;

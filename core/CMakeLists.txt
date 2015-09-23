@@ -50,6 +50,7 @@ add_subdirectory(base)
 #if (extrae)
 add_subdirectory(instrument)
 #endif()
+add_subdirectory(papi)
 
 set(objectlibs $<TARGET_OBJECTS:Base>
                $<TARGET_OBJECTS:Clib>

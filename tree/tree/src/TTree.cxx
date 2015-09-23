@@ -391,6 +391,10 @@
 
 #include <sys/time.h>
 
+#include "TPapi.h"
+#include <papi.h>
+#define NUM_EVENTS 5
+
 /*#define TBB_PREVIEW_LOCAL_OBSERVER 1
 #include "tbb/task_scheduler_observer.h"
 #include <sched.h>
@@ -5150,6 +5154,44 @@ public:
 };
 
 
+std::atomic<long unsigned int> curr_thid;
+long unsigned int GetThreadID()
+{
+	thread_local long unsigned int thid = curr_thid.fetch_add(1);
+	//printf("Thread %ld\n", thid);
+	return thid;
+}
+
+
+int init_papi() {
+  TPapi::EventSet = PAPI_NULL;
+  TPapi::tvalues = new long_long[NUM_EVENTS];
+  TPapi::tv_unzip = new long_long[NUM_EVENTS];
+  TPapi::tv_deserialize = new long_long[NUM_EVENTS];
+  TPapi::tv_branchgetentry = new long_long[NUM_EVENTS];
+  TPapi::tv_tbegetentry = new long_long[NUM_EVENTS];
+  for (int i = 0; i < NUM_EVENTS; i++) {
+	  TPapi::tvalues[i] = 0;
+	  TPapi::tv_unzip[i] = 0;
+	  TPapi::tv_deserialize[i] = 0;
+	  TPapi::tv_branchgetentry[i] = 0;
+	  TPapi::tv_tbegetentry[i] = 0;
+  }
+  int event_codes[NUM_EVENTS] = {PAPI_TOT_INS, PAPI_TOT_CYC,
+								 PAPI_L1_TCM,
+								 PAPI_L3_TCA, PAPI_L3_TCM};
+
+
+  if (PAPI_create_eventset(&TPapi::EventSet) != PAPI_OK)
+	  fprintf(stderr, "PAPI create_eventset error!\n");
+  if (PAPI_add_events(TPapi::EventSet, event_codes, NUM_EVENTS) != PAPI_OK)
+	  fprintf(stderr, "PAPI add_events error!\n");
+  if (PAPI_start(TPapi::EventSet) != PAPI_OK)
+	  fprintf(stderr, "PAPI start error!\n");
+
+  return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 /// Read all branches of entry and return total number of bytes read.
 ///
@@ -5485,6 +5527,20 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
    //static int npos = 0;
    //static std::mutex mutex;
 
+   /* PAPI */
+   /*if (entry == 0) {
+	   int retval = PAPI_library_init(PAPI_VER_CURRENT);
+	   if (retval != PAPI_VER_CURRENT)
+		   fprintf(stderr, "PAPI library init error!\n");
+	   if (PAPI_thread_init(GetThreadID) != PAPI_OK)
+	   	   fprintf(stderr, "PAPI thread_init error!\n");
+   }
+   static long_long values[NUM_THREADS][NUM_EVENTS];
+   static long_long v_unzip[NUM_THREADS][NUM_EVENTS];
+   static long_long v_deserialize[NUM_THREADS][NUM_EVENTS];
+   static long_long v_branchgetentry[NUM_THREADS][NUM_EVENTS];
+   static long_long v_tbegetentry[NUM_THREADS][NUM_EVENTS];*/
+
    static Int_t visited = 0;
 
    std::atomic<Int_t> pos = {0};
@@ -5492,11 +5548,15 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
    Int_t err_nb = 0;
    for (i=0;i<nbranches;i++)  {
 	   fTaskGroup->run([&]() {
+		   /*thread_local int val = init_papi();
+		   if (PAPI_reset(TPapi::EventSet) != PAPI_OK)
+			   fprintf(stderr, "PAPI reset error!\n");*/
+
     	   struct timeval stop, start;
            Long64_t time;
            gettimeofday(&start, NULL);
 
-           //R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
+           R__EXTRAE_EVENT(PBP_TASK, START_GENERIC);
            thread_local TThread thread_guard;
            Int_t nb=0;
            Int_t j = pos.fetch_add(1);
@@ -5505,7 +5565,7 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
            nb = branch->GetEntry(entry, getall);
            if (nb < 0) err_nb = nb;
            else        nbytes += nb;
-           //R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
+           R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
 
            gettimeofday(&stop, NULL);
            time = (stop.tv_sec - start.tv_sec)*1E06 + (stop.tv_usec - start.tv_usec);
@@ -5524,6 +5584,35 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
            branch_type = branch->GetClassName();
            //printf("DATA: task time %lld branch size %lld branch name %s branch type %s\n", task_time, branch_size, branch_name.c_str(), branch_type.c_str());
            if (recording) task_data_tree->Fill();*/
+
+           /*if (PAPI_accum(TPapi::EventSet, TPapi::tvalues) != PAPI_OK)
+        	   fprintf(stderr, "PAPI accum error!\n");*/
+
+           //if (entry == 4999) {
+        	//   memcpy(values[GetThreadID()], TPapi::tvalues, NUM_EVENTS * sizeof(long_long));
+        	   //memcpy(v_deserialize[GetThreadID()], TPapi::tv_deserialize, NUM_EVENTS * sizeof(long_long));
+        	   //memcpy(v_unzip[GetThreadID()], TPapi::tv_unzip, NUM_EVENTS * sizeof(long_long));
+        	   //memcpy(v_branchgetentry[GetThreadID()], TPapi::tv_branchgetentry, NUM_EVENTS * sizeof(long_long));
+        	   //memcpy(v_tbegetentry[GetThreadID()], TPapi::tv_tbegetentry, NUM_EVENTS * sizeof(long_long));
+        	   /*printf("PAPI Counters - Lambda:\n");
+			   printf("- Instructions:  %lld\n", TPapi::tvalues[0]);
+			   printf("- Cycles:  %lld\n", TPapi::tvalues[1]);
+			   printf("- Level 1 data cache misses:  %lld\n", TPapi::tvalues[2]);
+			   printf("- Level 3 data cache accesses:  %lld\n", TPapi::tvalues[3]);
+			   printf("- Level 3 data cache misses:  %lld\n", TPapi::tvalues[4]);*/
+        	   /*printf("PAPI Counters - Deserialization:\n");
+        	   printf("- Instructions:  %lld\n", TPapi::tv_deserialize[0]);
+        	   printf("- Cycles:  %lld\n", TPapi::tv_deserialize[1]);
+        	   printf("- Level 1 data cache misses:  %lld\n", TPapi::tv_deserialize[2]);
+        	   printf("- Level 3 data cache accesses:  %lld\n", TPapi::tv_deserialize[3]);
+        	   printf("- Level 3 data cache misses:  %lld\n", TPapi::tv_deserialize[4]);*/
+        	   /*printf("PAPI Counters - Unzipping:\n");
+			   printf("- Instructions:  %lld\n", TPapi::tv_unzip[0]);
+			   printf("- Cycles:  %lld\n", TPapi::tv_unzip[1]);
+			   printf("- Level 1 data cache misses:  %lld\n", TPapi::tv_unzip[2]);
+			   printf("- Level 3 data cache accesses:  %lld\n", TPapi::tv_unzip[3]);
+			   printf("- Level 3 data cache misses:  %lld\n", TPapi::tv_unzip[4]);*/
+           //}
        });
    }
    fTaskGroup->wait();
@@ -5533,6 +5622,53 @@ R__EXTRAE_EVENT(PBP_TASK, END_GENERIC);
 	   SortBranchesByTime();
 	   visited = 0;
    }
+   //if (entry == 4999) {
+	   /*for (int i = 1; i < NUM_THREADS; i++)
+		   for (int j = 0; j < NUM_EVENTS; j++)
+			   values[0][j] += values[i][j];
+	   printf("PAPI Counters - Lambda:\n");
+	   printf("- Instructions:  %lld\n", values[0][0]);
+	   printf("- Cycles:  %lld\n", values[0][1]);
+	   printf("- Level 1 data cache misses:  %lld\n", values[0][2]);
+	   printf("- Level 3 data cache accesses:  %lld\n", values[0][3]);
+	   printf("- Level 3 data cache misses:  %lld\n", values[0][4]);*/
+	   /*for (int i = 1; i < NUM_THREADS; i++)
+		   for (int j = 0; j < NUM_EVENTS; j++)
+			   v_deserialize[0][j] += v_deserialize[i][j];
+	   printf("PAPI Counters - Deserialization:\n");
+	   printf("- Instructions:  %lld\n", v_deserialize[0][0]);
+	   printf("- Cycles:  %lld\n", v_deserialize[0][1]);
+	   printf("- Level 1 data cache misses:  %lld\n", v_deserialize[0][2]);
+	   printf("- Level 3 data cache accesses:  %lld\n", v_deserialize[0][3]);
+	   printf("- Level 3 data cache misses:  %lld\n", v_deserialize[0][4]);*/
+	   /*for (int i = 1; i < NUM_THREADS; i++)
+	   		   for (int j = 0; j < NUM_EVENTS; j++)
+	   			   v_unzip[0][j] += v_unzip[i][j];
+	   	   printf("PAPI Counters - Unzipping:\n");
+	   	   printf("- Instructions:  %lld\n", v_unzip[0][0]);
+	   	   printf("- Cycles:  %lld\n", v_unzip[0][1]);
+	   	   printf("- Level 1 data cache misses:  %lld\n", v_unzip[0][2]);
+	   	   printf("- Level 3 data cache accesses:  %lld\n", v_unzip[0][3]);
+	   	   printf("- Level 3 data cache misses:  %lld\n", v_unzip[0][4]);*/
+	   /*for (int i = 1; i < NUM_THREADS; i++)
+		   for (int j = 0; j < NUM_EVENTS; j++)
+			   v_branchgetentry[0][j] += v_branchgetentry[i][j];
+	   printf("PAPI Counters - TBranch::GetEntry:\n");
+	   printf("- Instructions:  %lld\n", v_branchgetentry[0][0]);
+	   printf("- Cycles:  %lld\n", v_branchgetentry[0][1]);
+	   printf("- Level 1 data cache misses:  %lld\n", v_branchgetentry[0][2]);
+	   printf("- Level 3 data cache accesses:  %lld\n", v_branchgetentry[0][3]);
+	   printf("- Level 3 data cache misses:  %lld\n", v_branchgetentry[0][4]);*/
+	   /*for (int i = 1; i < NUM_THREADS; i++)
+	   		   for (int j = 0; j < NUM_EVENTS; j++)
+	   			   v_tbegetentry[0][j] += v_tbegetentry[i][j];
+	   	   printf("PAPI Counters - TBranchElement::GetEntry:\n");
+	   	   printf("- Instructions:  %lld\n", v_tbegetentry[0][0]);
+	   	   printf("- Cycles:  %lld\n", v_tbegetentry[0][1]);
+	   	   printf("- Level 1 data cache misses:  %lld\n", v_tbegetentry[0][2]);
+	   	   printf("- Level 3 data cache accesses:  %lld\n", v_tbegetentry[0][3]);
+	   	   printf("- Level 3 data cache misses:  %lld\n", v_tbegetentry[0][4]);*/
+   //}
 
 
    // GetEntry in list of friends

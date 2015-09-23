@@ -50,6 +50,9 @@
 #include "TStreamerInfoActions.h"
 #include "TSchemaRuleSet.h"
 
+#include "TPapi.h"
+#include <papi.h>
+
 ClassImp(TBranchElement)
 
 #if (__GNUC__ >= 3) || defined(__INTEL_COMPILER)
@@ -2263,6 +2266,29 @@ TClass* TBranchElement::GetCurrentClass()
 
 Int_t TBranchElement::GetEntry(Long64_t entry, Int_t getall)
 {
+	/*thread_local int level = 0;
+	level++;
+
+	if (level == 1 && PAPI_is_initialized()) {
+		 if (PAPI_reset(TPapi::EventSet) != PAPI_OK)
+				fprintf(stderr, "PAPI reset error!\n");
+		 //printf("TOP - Branch %s at Level %d\n", this->GetName(), level);
+	}*/
+	/*else if (PAPI_is_initialized()) {
+		printf("LOW - Branch %s at Level %d\n", this->GetName(), level);
+	}*/
+/*	if (this->GetMother() == this) {
+		const char* name = this->GetName();
+		size_t len = strlen(name);
+		if (name[len-1] != '.') {
+		//R__EXTRAE_EVENT(DESERIALIZE, START_GENERIC);
+		if (PAPI_is_initialized())
+			   if (PAPI_reset(TPapi::EventSet) != PAPI_OK)
+				   fprintf(stderr, "PAPI reset error!\n");
+		}
+	}
+*/
+
    // Remember which entry we are reading.
    fReadEntry = entry;
 
@@ -2346,6 +2372,25 @@ Int_t TBranchElement::GetEntry(Long64_t entry, Int_t getall)
          Info("GetEntry", "%lld, branch=%s, nbytes=%d", entry, GetName(), nbytes);
       }
    }
+
+   /*if (level == 1 && PAPI_is_initialized()) {
+	   if (PAPI_accum(TPapi::EventSet, TPapi::tv_tbegetentry) != PAPI_OK)
+	   	      	   fprintf(stderr, "PAPI accum error!\n");
+   }
+   level--;
+   */
+
+   /*if (this->GetMother() == this) {
+   		const char* name = this->GetName();
+   		size_t len = strlen(name);
+   		if (name[len-1] != '.') {
+   		//R__EXTRAE_EVENT(DESERIALIZE, END_GENERIC);
+   	    if (PAPI_is_initialized())
+	         if (PAPI_accum(TPapi::EventSet, TPapi::tv_tbegetentry) != PAPI_OK)
+	      	   fprintf(stderr, "PAPI accum error!\n");
+   		}
+   	}*/
+
    return nbytes;
 }
 

@@ -47,6 +47,9 @@
 
 #include <thread>
 
+#include "TPapi.h"
+#include <papi.h>
+
 Int_t TBranch::fgCount = 0;
 
 #if (__GNUC__ >= 3) || defined(__INTEL_COMPILER)
@@ -1208,6 +1211,10 @@ const char* TBranch::GetIconName() const
 
 Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
 {
+	 /*if (PAPI_is_initialized())
+	   if (PAPI_reset(TPapi::EventSet) != PAPI_OK)
+		   fprintf(stderr, "PAPI reset error!\n");*/
+
    // Remember which entry we are reading.
    fReadEntry = entry;
 
@@ -1291,9 +1298,22 @@ Int_t TBranch::GetEntry(Long64_t entry, Int_t getall)
    }
 
    // Int_t bufbegin = buf->Length();
+   /*if (PAPI_is_initialized())
+   if (PAPI_reset(TPapi::EventSet) != PAPI_OK)
+	   fprintf(stderr, "PAPI reset error!\n");*/
+
    //R__EXTRAE_EVENT(DESERIALIZE, START_GENERIC);
    (this->*fReadLeaves)(*buf);
    //R__EXTRAE_EVENT(DESERIALIZE, END_GENERIC);
+
+   /*if (PAPI_is_initialized())
+   if (PAPI_accum(TPapi::EventSet, TPapi::tv_deserialize) != PAPI_OK)
+	   fprintf(stderr, "PAPI accum error!\n");*/
+
+   /*if (PAPI_is_initialized())
+      if (PAPI_accum(TPapi::EventSet, TPapi::tv_branchgetentry) != PAPI_OK)
+   	   fprintf(stderr, "PAPI accum error!\n");*/
+
    return buf->Length() - bufbegin;
 }
 

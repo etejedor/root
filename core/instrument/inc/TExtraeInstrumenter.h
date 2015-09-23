@@ -25,7 +25,7 @@
 #define MAX_EVENT_NVAL 3
 #define MIN_EVENT_NVAL 2
 
-#define NUM_THREADS 1 
+#define NUM_THREADS 4 
 
 #include <atomic>
 
