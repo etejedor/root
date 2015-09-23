@@ -9,23 +9,14 @@
  * For the list of contributors see $ROOTSYS/README/CREDITS.             *
  *************************************************************************/
 
-//////////////////////////////////////////////////////////////////////////
-//                                                                      //
-// THashList                                                            //
-//                                                                      //
-// THashList implements a hybrid collection class consisting of a       //
-// hash table and a list to store TObject's. The hash table is used for //
-// quick access and lookup of objects while the list allows the objects //
-// to be ordered. The hash value is calculated using the value returned //
-// by the TObject's Hash() function. Each class inheriting from TObject //
-// can override Hash() as it sees fit.                                  //
-//Begin_Html
-/*
-<img src=gif/thashlist.gif>
+/** \class THashList
+THashList implements a hybrid collection class consisting of a
+hash table and a list to store TObject's. The hash table is used for
+quick access and lookup of objects while the list allows the objects
+to be ordered. The hash value is calculated using the value returned
+by the TObject's Hash() function. Each class inheriting from TObject
+can override Hash() as it sees fit.
 */
-//End_Html
-//                                                                      //
-//////////////////////////////////////////////////////////////////////////
 
 #include "THashList.h"
 #include "THashTable.h"
@@ -42,6 +33,7 @@ ClassImp(THashList)
 /// rate to about 1. The higher the collision rate, i.e. the longer the
 /// linked lists, the longer lookup will take. If rehash=0 the table will
 /// NOT automatically be rehashed. Use Rehash() for manual rehashing.
+///
 /// WARNING !!!
 /// If the name of an object in the HashList is modified, The hashlist
 /// must be Rehashed
@@ -161,7 +153,7 @@ void THashList::AddAt(TObject *obj, Int_t idx)
 ////////////////////////////////////////////////////////////////////////////////
 /// Return the average collision rate. The higher the number the longer
 /// the linked lists in the hashtable, the slower the lookup. If the number
-/// is high, or lookup noticeably too slow, perfrom a Rehash().
+/// is high, or lookup noticeably too slow, perform a Rehash().
 
 Float_t THashList::AverageCollisions() const
 {
@@ -234,7 +226,7 @@ TObject *THashList::FindObject(const TObject *obj) const
 /// Return the THashTable's list (bucket) in which obj can be found based on
 /// its hash; see THashTable::GetListForObject().
 
-TList *THashList::GetListForObject(const char *name) const
+const TList *THashList::GetListForObject(const char *name) const
 {
    return fTable->GetListForObject(name);
 }
@@ -243,7 +235,7 @@ TList *THashList::GetListForObject(const char *name) const
 /// Return the THashTable's list (bucket) in which obj can be found based on
 /// its hash; see THashTable::GetListForObject().
 
-TList *THashList::GetListForObject(const TObject *obj) const
+const TList *THashList::GetListForObject(const TObject *obj) const
 {
    return fTable->GetListForObject(obj);
 }

@@ -13,8 +13,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 /*! \class TPainter3dAlgorithms
+\ingroup Hist
+\brief The Legos and Surfaces painter class.
 
-## Legos and Surfaces package
+
 
 This package was originally written by Evgueni Tcherniaev from IHEP/Protvino.
 

@@ -38,7 +38,6 @@ The following people have contributed to this new version:
  Matevz Tadel, UCSD/CMS, Eve, \
  Vassil Vassilev, CERN/SFT \
  Wouter Verkerke, NIKHEF/Atlas, RooFit, \
- Yue Shi Lai, MIT,\
  Maciej Zimnoch
 
 
@@ -49,13 +48,21 @@ The following people have contributed to this new version:
 Fixed the dictionary generation in the case of class inside a namespace
 marked inlined.
 
+### Thread safety
+
+We added the function `TMethodCall::GetCallFunc` to allow direct access to the function wrapper.
+
+We reduced thread serialization in `TClass::GetCheckSum`, `TClass::GetBaseClassOffset` and `TClass::Property`
+
+`TObjArray::Delete` was updated to allow its caller to explicitly avoid costly checks (extra RecursiveRemove and lock)
+
 ### TDirectory::TContext
 
-We added a default constructor to TDirectory::TContext which record the current directory
+We added a default constructor to `TDirectory::TContext` which record the current directory
 and will restore it at destruction time and does not change the current directory.
 
-The constructor for TDirectory::TContext that takes a single TDirectory pointer as
-an argument was changed to set gDirectory to zero when being passed a null pointer;
+The constructor for `TDirectory::TContext` that takes a single TDirectory pointer as
+an argument was changed to set `gDirectory` to zero when being passed a null pointer;
 previously it was interpreting a null pointer as a request to *not* change the current
 directory - this behavior is now implement by the default constructor.
 
@@ -75,9 +82,48 @@ New options:
 - `-a` option append to existing file
 - The verbosity level is now optional after -v
 
+### Command line utilities
+
+We added command line utilities to streamline very common operations performed on root files, like listing their content or creating directories.
+The command line utilities are:
+- `rootbrowse`: to open the file in a TBrowser
+- `rootcp`: to copy content from one file to another
+- `rooteventselector`: to select a subset of the events in a tree contained in a file
+- `rootls`: to list the content of a rootfile
+- `rootmkdir`: to create a directory in a rootfile
+- `rootmv`: to move content across files
+- `rootprint`: to plot content (histograms, graphs) of files
+- `rootrm`: to remove content from files
+These utilities took inspiration from the well known *nix commands and all offer the `-h` switch which provides documentation for all options available and example invocation lines.
+
+
 ### I/O New functionalities
 
 ### I/O Behavior change.
+
+
+
+## TTree Libraries
+
+### Improvement of handling of default number of entries
+
+A new const expression value: `TTree::kMaxEntries` has been introduced to
+express the largest possible entry number in a `TTree`.  This is used in
+two main cases:
+
+- as the default value for the requested number of entries a routine should be
+applied to; for example this is used for `TTree::Draw` and `TTree::Process`.
+Previously the default was only 1 billions entries, causing those routines to
+end early in case of very large trees.
+
+- as the default value for the number of entries returned by TChain::GetEntriesFast.
+The previous value was kBigNumber (set to 1234567890) and internally (but somewhat
+inconsistently, see [ROOT-6885]) a larger value was used (named theBigNumber).  Now
+`TTree::kMaxEntries` is used throughout TChain.
+
+`TChain::kBigNumber` is deprecated and its value has been changed to be equal
+to `TTree::kMaxEntries`.
+
 
 
 ## Histogram Libraries
@@ -89,15 +135,69 @@ New options:
 ## RooFit Libraries
 
 
-## TTree Libraries
-
-
 ## 2D Graphics Libraries
 
 ### THistPainter
 
 Improve the algorithm to compute the lower limit of an axis in log scale when its
 real lower limit is 0. The problem was reported in ROOT-7414.
+
+Using the `COL` option with histograms having some negative bins; the empty bins
+(containing 0) are drawn. In some cases one wants to not draw empty bins
+(containing 0) of histograms having a negative minimum. The option `1`, used with
+the option `COL`, allows to do that.
+
+Implement the Log option for `CANDLE` plots as requested
+[here](https://root.cern.ch/phpBB3/viewtopic.php?f=3&t=20225&p=87006#p87006).
+
+### TTeXDump
+
+From Dmitry Kalinkin (via github): Fix file corruption in `TTeXDump::DrawPolyMarker`
+The current implementation of `TTeXDump` uses `TVirtualPS::PrintFast` based methods
+to output TeX markup with automatic linewraps. Yet these methods are optimized for
+PostScript format where there are a lot of space characters that are used for newline
+placement. Current `TTeXDump::DrawPolyMarker` would often produce a long contiguous lines
+that trigger a forceful linewrap that can happen in the middle of real number constant
+(ignored by latex) or even in the middle of latex command (producing incorrect file).
+One solution would be to rewrite TTeXDump using only `PrintRaw` (that you can't mix
+with `PrintStr/PrintFast/WriteReal`). The other would be to fix `PrintFast` to not
+introduce forced newline. The third option is less intrusive and just adds additional
+spaces to provide clues for the proper line wrapping (this is the one implemented in
+this change).
+
+### TLatex
+
+Make sure the line width used to draw `#sqrt` is always >= 1.
+
+When a global text alignment was set the `TLatex`characters `#minus`, `#plus`,
+`#mp`, `#hbar`, and `#backslash` were mis-aligned. The following macro demonstrate
+the problem:
+
+``` {.cpp}
+{
+   gStyle->SetTextAlign(22);
+   TLatex t(.5,.5,"#minus100 #mp100 #plus100 #hbar #backslash");
+   t.Draw();
+}
+```
+
+The angle of a `TLatex` object was set to 0 if the `GetYsize` method was called.
+
+### TColor
+
+New palette `kViridis`. It was presented at SciPy2015 by Stéfan van der Walt and
+Nathaniel Smith. It is now matplotlib's current default color map.
+
+![Viridis](palette_112.png)
+
+
+### TMultiGraph
+
+Ignore empty graphs when computing the multi-graph range at painting time.
+
+### TASImage
+
+A left click on a image produced a one pixel zoom.
 
 ## 3D Graphics Libraries
 
@@ -113,7 +213,7 @@ real lower limit is 0. The problem was reported in ROOT-7414.
 ### THttpServer
 
 Support of POST HTTP requests. For example, ROOT objects can be send with POST request and used as arguments of
-objects method execution in exe.bin and exe.json requests. Request and response HTTP headers are now directely accessible in THttpCallArg class
+objects method execution in exe.bin and exe.json requests. Request and response HTTP headers are now directly accessible in THttpCallArg class
 
 When command is registered with THttpServer::RegisterCommand() method,
 one could configure additional arguments which should be submitted when
@@ -157,6 +257,9 @@ If host has several network interfaces, one could select one for binding:
 
 ## Language Bindings
 
+### Notebooks
+We provided integration of ROOT with Jupyter notebooks. For what concerns Python notebooks, tab completion, output and graphics capturing have been enabled. It is possible to switch from Python to C++ and have a C++ notebook at disposal.
+New tutorials and code examples have been provided here: https://root.cern.ch/code-examples#notebooks
 
 ## JavaScript ROOT
 
@@ -172,5 +275,3 @@ If host has several network interfaces, one could select one for binding:
 
 
 ## Build, Configuration and Testing Infrastructure
-
-

@@ -1,3 +1,49 @@
+#
+# Try to capture the initial set of cmake command line args passed by
+# the user for configuration.
+# Original Recipe taken from http://stackoverflow.com/questions/10205986/how-to-capture-cmake-command-line-arguments
+#
+# Note: The entries will live on CMakeCache.txt, so re-configuring with
+# a command line that doesn't include an option won't remove it. You need
+# to remove the CMakeCache.txt file, or override the value via the command line.
+#
+#
+GET_CMAKE_PROPERTY(CACHE_VARS CACHE_VARIABLES)
+FOREACH(CACHE_VAR ${CACHE_VARS})
+    GET_PROPERTY(CACHE_VAR_HELPSTRING CACHE ${CACHE_VAR} PROPERTY HELPSTRING)
+    IF(CACHE_VAR_HELPSTRING STREQUAL "No help, variable specified on the command line.")
+        GET_PROPERTY(CACHE_VAR_TYPE CACHE ${CACHE_VAR} PROPERTY TYPE)
+        IF(CACHE_VAR_TYPE STREQUAL "UNINITIALIZED")
+            SET(CACHE_VAR_TYPE)
+        ELSE(CACHE_VAR_TYPE STREQUAL "UNINITIALIZED")
+            SET(CACHE_VAR_TYPE :${CACHE_VAR_TYPE})
+        ENDIF()
+        SET(CMAKE_INVOKE_ARGS "${CMAKE_INVOKE_ARGS} -D${CACHE_VAR}${CACHE_VAR_TYPE}=\"${${CACHE_VAR}}\"")
+    ENDIF()
+ENDFOREACH(CACHE_VAR ${CACHE_VARS})
+# Record the full command line invocation.
+SET(CMAKE_INVOKE "${CMAKE_COMMAND} ${CMAKE_INVOKE_ARGS} ${CMAKE_CURRENT_SOURCE_DIR}" CACHE STRING "Command used to invoke cmake" FORCE)
+# Create a simple shell script that allows us to reinvoke cmake with the captured command line.
+IF (NOT WIN32)
+    if (NOT ${CMAKE_GENERATOR} STREQUAL "Unix Makefiles")
+        set(RECMAKE_GENERATOR "-G ${CMAKE_GENERATOR}")
+    endif()
+    SET(RECMAKE_REPLAY_FILE ${CMAKE_BINARY_DIR}/recmake_replay.sh)
+    SET(RECMAKE_INITIAL_FILE ${CMAKE_BINARY_DIR}/recmake_initial.sh)
+    if (NOT EXISTS ${RECMAKE_INITIAL_FILE})
+        FILE(WRITE ${RECMAKE_INITIAL_FILE} "#!/bin/sh\n"
+                "rm -f CMakeCache.txt\n"
+                "${CMAKE_INVOKE} ${RECMAKE_GENERATOR}\n")
+    endif()
+    if (EXISTS ${RECMAKE_REPLAY_FILE})
+        FILE(APPEND ${RECMAKE_REPLAY_FILE} "${CMAKE_INVOKE}\n")
+    else()
+        FILE(WRITE ${RECMAKE_REPLAY_FILE} "#!/bin/sh\n"
+            "rm -f CMakeCache.txt\n"
+            "${CMAKE_INVOKE} ${RECMAKE_GENERATOR}\n")
+    endif()
+ENDIF (NOT WIN32)
+
 #---Check if cmake has the required version-----------------------------------------------------
 cmake_minimum_required(VERSION 2.8.8 FATAL_ERROR)
 cmake_policy(SET CMP0005 NEW)
@@ -146,15 +192,15 @@ get_property(__allFiles GLOBAL PROPERTY ROOT_DICTIONARY_FILES)
 get_property(__clingetcpch GLOBAL PROPERTY CLINGETCPCH)
 
 
-string (REPLACE " " ";" CMAKE_CXX_FLAGS_SEPARATE ${CMAKE_CXX_FLAGS})
+string(REGEX REPLACE "[ ]-" ";-" CMAKE_CXX_FLAGS_SEPARATE ${CMAKE_CXX_FLAGS})
 add_custom_command(OUTPUT etc/dictpch/allLinkDefs.h
                           etc/dictpch/allHeaders.h
                           etc/dictpch/allCppflags.txt
-                   COMMAND ${CMAKE_SOURCE_DIR}/build/unix/makepchinput.py ${CMAKE_SOURCE_DIR} . ${__clingetcpch} -- ${CMAKE_CXX_FLAGS_SEPARATE}
+                   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/build/unix/makepchinput.py ${CMAKE_SOURCE_DIR} . ${__clingetcpch} -- ${CMAKE_CXX_FLAGS_SEPARATE}
                    DEPENDS ${CMAKE_SOURCE_DIR}/build/unix/makepchinput.py ${__allFiles})
 
 add_custom_command(OUTPUT etc/allDict.cxx.pch
-                   COMMAND ${CMAKE_SOURCE_DIR}/etc/dictpch/makepch.py etc/allDict.cxx.pch -I${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
+                   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/etc/dictpch/makepch.py etc/allDict.cxx.pch -I${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
                    DEPENDS ${CMAKE_SOURCE_DIR}/etc/dictpch/makepch.py
                            etc/dictpch/allLinkDefs.h
                            etc/dictpch/allHeaders.h
@@ -190,8 +236,7 @@ add_custom_target(version COMMAND ${CMAKE_SOURCE_DIR}/build/unix/makeversion.sh 
 #add_dependencies(version root.exe)
 
 #---distribution commands------------------------------------------------------------------------
-add_custom_target(distsrc COMMAND ${CMAKE_SOURCE_DIR}/build/unix/makedistsrc.sh
-                          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_custom_target(distsrc COMMAND ${CMAKE_SOURCE_DIR}/build/unix/makedistsrc.sh ${CMAKE_SOURCE_DIR})
 add_custom_target(dist COMMAND cpack --config CPackConfig.cmake)
 
 #---Configure and install various files neded later and for clients -----------------------------
@@ -201,21 +246,20 @@ include(RootConfiguration)
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_INSTALL_PREFIX)
   install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
   if(gnuinstall)
-    install(DIRECTORY README/ DESTINATION ${CMAKE_INSTALL_DOCDIR} PATTERN ".svn" EXCLUDE)
+    install(DIRECTORY README/ DESTINATION ${CMAKE_INSTALL_DOCDIR})
   else()
-    install(DIRECTORY README DESTINATION ${CMAKE_INSTALL_DOCDIR} PATTERN ".svn" EXCLUDE)
+    install(DIRECTORY README DESTINATION ${CMAKE_INSTALL_DOCDIR})
   endif()
   install(DIRECTORY etc/ DESTINATION ${CMAKE_INSTALL_SYSCONFDIR} USE_SOURCE_PERMISSIONS
-                         PATTERN ".svn" EXCLUDE
                          REGEX system.rootrc EXCLUDE
                          REGEX root.mimes EXCLUDE)
-  install(DIRECTORY fonts/  DESTINATION ${CMAKE_INSTALL_FONTDIR} PATTERN ".svn" EXCLUDE)
-  install(DIRECTORY icons/  DESTINATION ${CMAKE_INSTALL_ICONDIR} PATTERN ".svn" EXCLUDE)
-  install(DIRECTORY macros/ DESTINATION ${CMAKE_INSTALL_MACRODIR} PATTERN ".svn" EXCLUDE)
-  install(DIRECTORY man/    DESTINATION ${CMAKE_INSTALL_MANDIR} PATTERN ".svn" EXCLUDE)
-  install(DIRECTORY test/      DESTINATION ${CMAKE_INSTALL_TESTDIR} COMPONENT tests PATTERN ".svn" EXCLUDE)
-  install(DIRECTORY tutorials/ DESTINATION ${CMAKE_INSTALL_TUTDIR} COMPONENT tests PATTERN ".svn" EXCLUDE)
-  install(DIRECTORY cmake/modules DESTINATION ${CMAKE_INSTALL_CMAKEDIR} PATTERN ".svn" EXCLUDE)
+  install(DIRECTORY fonts/  DESTINATION ${CMAKE_INSTALL_FONTDIR})
+  install(DIRECTORY icons/  DESTINATION ${CMAKE_INSTALL_ICONDIR})
+  install(DIRECTORY macros/ DESTINATION ${CMAKE_INSTALL_MACRODIR})
+  install(DIRECTORY man/    DESTINATION ${CMAKE_INSTALL_MANDIR})
+  install(DIRECTORY test/      DESTINATION ${CMAKE_INSTALL_TESTDIR} COMPONENT tests)
+  install(DIRECTORY tutorials/ DESTINATION ${CMAKE_INSTALL_TUTDIR} COMPONENT tests)
+  install(DIRECTORY cmake/modules DESTINATION ${CMAKE_INSTALL_CMAKEDIR} PATTERN "Find*.cmake" EXCLUDE)
   install(FILES build/misc/root.m4 DESTINATION ${CMAKE_INSTALL_ACLOCALDIR})
 endif()
 
@@ -231,18 +275,15 @@ if(testing)
     execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     OUTPUT_VARIABLE GIT_BRANCH OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(GIT_BRANCH STREQUAL HEAD)
-      string(REPLACE "origin/" "" GIT_BRANCH "$ENV{GIT_BRANCH}")  # Comming from Jenkins checkout
-    endif()
+    #---Is the roottest source directory around?
     if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/roottest)
-      execute_process(COMMAND ${GIT_EXECUTABLE} clean -xfdq WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/roottest)
-      execute_process(COMMAND ${GIT_EXECUTABLE} checkout ${GIT_BRANCH} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/roottest)
-      execute_process(COMMAND ${GIT_EXECUTABLE} fetch origin WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/roottest)
-      execute_process(COMMAND ${GIT_EXECUTABLE} rebase origin/${GIT_BRANCH} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/roottest)
-      file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/roottest)
-      add_subdirectory(roottest)
+      set(roottestdir ${CMAKE_CURRENT_SOURCE_DIR}/roottest)
     elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../roottest)
-      add_subdirectory(../roottest roottest)
+      get_filename_component(roottestdir ${CMAKE_CURRENT_SOURCE_DIR}/../roottest ABSOLUTE)
+    endif()
+    if(roottestdir)
+      file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/roottest)
+      add_subdirectory(${roottestdir} roottest)
     else()
       message("-- Could not find roottest directory! Cloning from the repository...")
       execute_process(COMMAND ${GIT_EXECUTABLE} clone -b ${GIT_BRANCH} http://root.cern.ch/git/roottest.git

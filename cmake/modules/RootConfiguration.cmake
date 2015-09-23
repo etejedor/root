@@ -252,7 +252,6 @@ set(buildbonjour ${value${bonjour}})
 set(dnssdlibdir ${BONJOUR_LIBRARY_DIR})
 set(dnssdlib ${BONJOUR_LIBRARY})
 set(dnsdincdir ${BONJOUR_INCLUDE_DIR})
-set(bonjourcppflags)
 
 set(buildchirp ${value${chirp}})
 set(chirplibdir ${CHIRP_LIBRARY_DIR})
@@ -467,8 +466,7 @@ else()
 endif()
 
 CHECK_CXX_SOURCE_COMPILES("#include <string_view>
-int main() { return 0; }
-" found_stdstringview)
+  int main() { std::string_view().to_string(); return 0;}" found_stdstringview)
 if(found_stdstringview)
   set(hasstdstringview define)
 else()
@@ -476,8 +474,7 @@ else()
 endif()
 
 CHECK_CXX_SOURCE_COMPILES("#include <experimental/string_view>
-int main() { return 0; }
-" found_stdexpstringview)
+   int main() { std::experimental::string_view().to_string(); return 0;}" found_stdexpstringview)
 if(found_stdexpstringview)
   set(hasstdexpstringview define)
 else()

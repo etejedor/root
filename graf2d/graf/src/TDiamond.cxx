@@ -19,26 +19,24 @@
 #include "TVirtualX.h"
 #include "TMath.h"
 
-
 ClassImp(TDiamond)
 
-//______________________________________________________________________________
-//
-// A diamond is defined by :
-//   - Its central left coordinates x1,y1
-//   - Its top central coordinates x2,y2
-//
-// A diamond has line attributes (see TAttLine)
-//   and fill area attributes (see TAttFill).
-//
-// Like for the class TPaveText, a TDiamond may have one or more line(s)
-// of text inside.
-//Begin_Html
-/*
-<img src="gif/diamond.gif">
+/** \class TDiamond
+Draw a Diamond.
+
+A diamond is defined by:
+
+- Its central left coordinates x1,y1
+- Its top central coordinates x2,y2
+
+A diamond has line attributes (see TAttLine) and fill area attributes (see TAttFill).
+
+Like for the class TPaveText, a TDiamond may have one or more line(s) of text inside.
+
+Begin_Macro(source)
+../../../tutorials/graphics/diamond.C
+End_Macro
 */
-//End_Html
-//
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Diamond default constructor.
@@ -99,25 +97,12 @@ void TDiamond::Draw(Option_t *option)
 ////////////////////////////////////////////////////////////////////////////////
 /// Execute action corresponding to one event.
 ///
-///  This member function is called when a Diamond object is clicked.
+/// This member function is called when a Diamond object is clicked.
 ///
-///  If the mouse is clicked inside the diamond, the diamond is moved.
+/// If the mouse is clicked inside the diamond, the diamond is moved.
 ///
-///  If the mouse is clicked on the 4 tops (pL,pR,pTop,pBot), the diamond is rscaled.
-///
-///
-///                           pTop
-///                        +---------+
-///                        |   / \   |
-///                        |  /   \  |
-///                        | /     \ |
-///                      pL|/pinside\|pR
-///                        |\       /|
-///                        | \     / |
-///                        |  \   /  |
-///                        |   \ /   |
-///                        +---------+
-///                            pBot
+/// If the mouse is clicked on the 4 tops (pL,pR,pTop,pBot), the diamond is
+/// rescaled.
 
 void TDiamond::ExecuteEvent(Int_t event, Int_t px, Int_t py)
 {

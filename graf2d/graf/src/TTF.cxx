@@ -9,13 +9,9 @@
  * For the list of contributors see $ROOTSYS/README/CREDITS.             *
  *************************************************************************/
 
-//////////////////////////////////////////////////////////////////////////
-//                                                                      //
-// TTF                                                                  //
-//                                                                      //
-// Interface to the freetype 2 library.                                 //
-//                                                                      //
-//////////////////////////////////////////////////////////////////////////
+/** \class TTF
+\brief Interface to the freetype 2 library.
+*/
 
 // RConfigure.h is needed for TTFFONTDIR
 #include "RConfigure.h"
@@ -29,31 +25,29 @@
 #include "TMath.h"
 #include "TError.h"
 
-
 // to scale fonts to the same size as the old TT version
 const Float_t kScale = 0.93376068;
 
 TTF gCleanupTTF; // Allows to call "Cleanup" at the end of the session
 
-Bool_t      TTF::fgInit           = kFALSE;
-Bool_t      TTF::fgSmoothing      = kTRUE;
-Bool_t      TTF::fgKerning        = kTRUE;
-Bool_t      TTF::fgHinting        = kFALSE;
-Int_t       TTF::fgTBlankW        = 0;
-Int_t       TTF::fgWidth          = 0;
-Int_t       TTF::fgAscent         = 0;
-Int_t       TTF::fgCurFontIdx     = -1;
-Int_t       TTF::fgSymbItaFontIdx = -1;
-Int_t       TTF::fgFontCount      = 0;
-Int_t       TTF::fgNumGlyphs      = 0;
-char       *TTF::fgFontName[kTTMaxFonts];
-FT_Matrix  *TTF::fgRotMatrix;
-FT_Library  TTF::fgLibrary;
-FT_BBox     TTF::fgCBox;
-FT_Face     TTF::fgFace[kTTMaxFonts];
-FT_CharMap  TTF::fgCharMap[kTTMaxFonts];
-TTGlyph     TTF::fgGlyphs[kMaxGlyphs];
-
+Bool_t         TTF::fgInit           = kFALSE;
+Bool_t         TTF::fgSmoothing      = kTRUE;
+Bool_t         TTF::fgKerning        = kTRUE;
+Bool_t         TTF::fgHinting        = kFALSE;
+Int_t          TTF::fgTBlankW        = 0;
+Int_t          TTF::fgWidth          = 0;
+Int_t          TTF::fgAscent         = 0;
+Int_t          TTF::fgCurFontIdx     = -1;
+Int_t          TTF::fgSymbItaFontIdx = -1;
+Int_t          TTF::fgFontCount      = 0;
+Int_t          TTF::fgNumGlyphs      = 0;
+char          *TTF::fgFontName[kTTMaxFonts];
+FT_Matrix     *TTF::fgRotMatrix;
+FT_Library     TTF::fgLibrary;
+FT_BBox        TTF::fgCBox;
+FT_Face        TTF::fgFace[kTTMaxFonts];
+FT_CharMap     TTF::fgCharMap[kTTMaxFonts];
+TTF::TTGlyph   TTF::fgGlyphs[kMaxGlyphs];
 
 ClassImp(TTF)
 
@@ -178,7 +172,7 @@ void TTF::GetTextExtent(UInt_t &w, UInt_t &h, wchar_t *text)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Compute the glyps positions, fgAscent and fgWidth (needed for alignment).
+/// Compute the glyphs positions, fgAscent and fgWidth (needed for alignment).
 /// Perform the Glyphs transformation.
 /// Compute the string control box.
 /// If required take the "kerning" into account.
@@ -372,8 +366,8 @@ void TTF::SetSmoothing(Bool_t state)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Set text font to specified name.
-/// font       : font name
-/// italic     : the fonts should be slanted. Used for symbol font.
+///  - font       : font name
+///  - italic     : the fonts should be slanted. Used for symbol font.
 ///
 /// Set text font to specified name. This function returns 0 if
 /// the specified font is found, 1 if not.
@@ -478,23 +472,24 @@ Int_t TTF::SetTextFont(const char *fontname, Int_t italic)
 ////////////////////////////////////////////////////////////////////////////////
 /// Set specified font.
 /// List of the currently supported fonts (screen and PostScript)
-/// =============================================================
-///   Font ID       X11                        TTF
-///        1 : times-medium-i-normal       timesi.ttf
-///        2 : times-bold-r-normal         timesbd.ttf
-///        3 : times-bold-i-normal         timesi.ttf
-///        4 : helvetica-medium-r-normal   arial.ttf
-///        5 : helvetica-medium-o-normal   ariali.ttf
-///        6 : helvetica-bold-r-normal     arialbd.ttf
-///        7 : helvetica-bold-o-normal     arialbi.ttf
-///        8 : courier-medium-r-normal     cour.ttf
-///        9 : courier-medium-o-normal     couri.ttf
-///       10 : courier-bold-r-normal       courbd.ttf
-///       11 : courier-bold-o-normal       courbi.ttf
-///       12 : symbol-medium-r-normal      symbol.ttf
-///       13 : times-medium-r-normal       times.ttf
-///       14 :                             wingding.ttf
-///       15 : symbol oblique is emulated from symbol.ttf
+///
+/// | Font ID |   X11                     |     TTF          |
+/// |---------|---------------------------|------------------|
+/// |      1  | times-medium-i-normal     | timesi.ttf       |
+/// |      2  | times-bold-r-normal       | timesbd.ttf      |
+/// |      3  | times-bold-i-normal       | timesi.ttf       |
+/// |      4  | helvetica-medium-r-normal | arial.ttf        |
+/// |      5  | helvetica-medium-o-normal | ariali.ttf       |
+/// |      6  | helvetica-bold-r-normal   | arialbd.ttf      |
+/// |      7  | helvetica-bold-o-normal   | arialbi.ttf      |
+/// |      8  | courier-medium-r-normal   | cour.ttf         |
+/// |      9  | courier-medium-o-normal   | couri.ttf        |
+/// |     10  | courier-bold-r-normal     | courbd.ttf       |
+/// |     11  | courier-bold-o-normal     | courbi.ttf       |
+/// |     12  | symbol-medium-r-normal    | symbol.ttf       |
+/// |     13  | times-medium-r-normal     | times.ttf        |
+/// |     14  |                           | wingding.ttf     |
+/// |     15  | symbol oblique is emulated from symbol.ttf | |
 
 void TTF::SetTextFont(Font_t fontnumber)
 {
@@ -660,7 +655,7 @@ const FT_BBox &TTF::GetBox()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTGlyph *TTF::GetGlyphs()
+TTF::TTGlyph *TTF::GetGlyphs()
 {
     return fgGlyphs;
 }

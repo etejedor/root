@@ -23,31 +23,29 @@ const Double_t kPI = 3.14159265358979323846;
 
 ClassImp(TEllipse)
 
+/** \class TEllipse
+Draw Ellipses.
 
-////////////////////////////////////////////////////////////////////////////////
+The ellipse can be truncated and rotated. It is defined by its center `(x1,y1)`
+and two radius`r1` and `r2`.
 
-/* Begin_Html
-<center><h2>TEllipse : to draw ellipses</h2></center>
-The ellipse can be truncated and rotated.
-It is defined by its center <tt>(x1,y1)</tt> and two radius
-<tt>r1</tt> and <tt>r2</tt>.
-A minimum and maximum angle may be specified <tt>(phimin, phimax)</tt>.
-The ellipse may be rotated with an angle <tt>theta</tt>. All these
+A minimum and maximum angle may be specified `(phimin, phimax)`.
+The ellipse may be rotated with an angle `theta`. All these
 angles are in degrees.
-The attributes of the outline line are given via <tt>TAttLine</tt>.
-The attributes of the fill area are given via <tt>TAttFill</tt>.
+The attributes of the outline line are given via `TAttLine`.
+The attributes of the fill area are given via `TAttFill`.
 The picture below illustrates different types of ellipses.
-<p>
+
 When an ellipse sector only is drawn, the lines connecting the center
 of the ellipse to the edges are drawn by default. One can specify
 the drawing option "only" to not draw these lines or alternatively
-call the function <tt>SetNoEdges()</tt>. To remove completely the ellipse
+call the function `SetNoEdges()`. To remove completely the ellipse
 outline it is enough to specify 0 as line style.
-End_Html
+
 Begin_Macro(source)
 ../../../tutorials/graphics/ellipse.C
-End_Macro */
-
+End_Macro
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Ellipse default constructor.
@@ -62,7 +60,6 @@ TEllipse::TEllipse(): TObject(), TAttLine(), TAttFill()
    fPhimax = 360;
    fTheta  = 0;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Ellipse normal constructor.
@@ -80,14 +77,12 @@ TEllipse::TEllipse(Double_t x1, Double_t y1,Double_t r1,Double_t r2,Double_t phi
    if (r2 <= 0) fR2 = fR1;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Ellipse default destructor.
 
 TEllipse::~TEllipse()
 {
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Copy constructor.
@@ -105,7 +100,6 @@ TEllipse::TEllipse(const TEllipse &ellipse) : TObject(ellipse), TAttLine(ellipse
    ((TEllipse&)ellipse).Copy(*this);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Copy this ellipse to ellipse.
 
@@ -122,7 +116,6 @@ void TEllipse::Copy(TObject &obj) const
    ((TEllipse&)obj).fPhimax = fPhimax;
    ((TEllipse&)obj).fTheta  = fTheta;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Compute distance from point px,py to an ellipse.
@@ -165,16 +158,13 @@ Int_t TEllipse::DistancetoPrimitive(Int_t px, Int_t py)
    return dist;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Draw this ellipse with its current attributes.
 
 void TEllipse::Draw(Option_t *option)
 {
    AppendPad(option);
-
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Draw this ellipse with new coordinates.
@@ -189,19 +179,18 @@ void TEllipse::DrawEllipse(Double_t x1, Double_t y1,Double_t r1,Double_t r2,Doub
    if (TestBit(kNoEdges)) newellipse->SetBit(kNoEdges);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Execute action corresponding to one event.
 ///
-///  This member function is called when a line is clicked with the locator
+/// This member function is called when a line is clicked with the locator
 ///
-///  If Left button clicked on one of the line end points, this point
-///     follows the cursor until button is released.
+/// If Left button clicked on one of the line end points, this point
+/// follows the cursor until button is released.
 ///
-///  if Middle button clicked, the line is moved parallel to itself
-///     until the button is released.
+/// if Middle button clicked, the line is moved parallel to itself
+/// until the button is released.
 ///
-///  NOTE that support for log scale is not implemented
+/// NOTE that support for log scale is not implemented
 
 void TEllipse::ExecuteEvent(Int_t event, Int_t px, Int_t py)
 {
@@ -512,7 +501,6 @@ void TEllipse::ExecuteEvent(Int_t event, Int_t px, Int_t py)
    }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// List this ellipse with its attributes.
 
@@ -522,7 +510,6 @@ void TEllipse::ls(Option_t *) const
    printf("%s:  X1= %f Y1=%f R1=%f R2=%f\n",GetName(),fX1,fY1,fR1,fR2);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Paint this ellipse with its current attributes.
 
@@ -530,7 +517,6 @@ void TEllipse::Paint(Option_t *option)
 {
    PaintEllipse(fX1,fY1,fR1,fR2,fPhimin,fPhimax,fTheta,option);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Draw this ellipse with new coordinates.
@@ -581,7 +567,6 @@ void TEllipse::PaintEllipse(Double_t x1, Double_t y1, Double_t r1, Double_t r2,
    }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Dump this ellipse with its attributes.
 
@@ -593,7 +578,6 @@ void TEllipse::Print(Option_t *) const
    if (GetLineWidth() != 1) printf(" Width=%d",GetLineWidth());
    printf("\n");
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Save primitive as a C++ statement(s) on output stream out
@@ -617,7 +601,6 @@ void TEllipse::SavePrimitive(std::ostream &out, Option_t * /*= ""*/)
    out<<"   ellipse->Draw();"<<std::endl;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Return kTRUE if kNoEdges bit is set, kFALSE otherwise.
 
@@ -625,7 +608,6 @@ Bool_t TEllipse::GetNoEdges() const
 {
    return TestBit(kNoEdges) ? kTRUE : kFALSE;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// if  noEdges = kTRUE the lines connecting the center to the edges
@@ -637,7 +619,6 @@ void TEllipse::SetNoEdges(Bool_t noEdges)
    if (noEdges) SetBit(kNoEdges);
    else         ResetBit(kNoEdges);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Stream an object of class TEllipse.
@@ -722,7 +703,7 @@ void TEllipse::SetBBoxCenterY(const Int_t y)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Set lefthandside of BoundingBox to a value
+/// Set left hand side of BoundingBox to a value
 /// (resize in x direction on left)
 
 void TEllipse::SetBBoxX1(const Int_t x)
@@ -735,7 +716,7 @@ void TEllipse::SetBBoxX1(const Int_t x)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Set righthandside of BoundingBox to a value
+/// Set right hand side of BoundingBox to a value
 /// (resize in x direction on right)
 
 void TEllipse::SetBBoxX2(const Int_t x)

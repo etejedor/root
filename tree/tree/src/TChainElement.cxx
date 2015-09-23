@@ -9,11 +9,9 @@
  * For the list of contributors see $ROOTSYS/README/CREDITS.             *
  *************************************************************************/
 
-//////////////////////////////////////////////////////////////////////////
-//                                                                      //
-// A TChainElement describes a component of a TChain.                   //
-//                                                                      //
-//////////////////////////////////////////////////////////////////////////
+/** \class TChainElement
+A TChainElement describes a component of a TChain.
+*/
 
 #include "TTree.h"
 #include "TChainElement.h"
@@ -78,7 +76,12 @@ void TChainElement::CreatePackets()
 void TChainElement::ls(Option_t *) const
 {
    TROOT::IndentLevel();
-   std::cout << GetTitle() << "tree:" << GetName() << " entries=" << fEntries << '\n';
+   std::cout << GetTitle() << "tree:" << GetName() << " entries=";
+   if (fEntries == TTree::kMaxEntries)
+      std::cout << "<not calculated>";
+   else
+      std::cout << fEntries;
+   std::cout << '\n';
 }
 
 ////////////////////////////////////////////////////////////////////////////////

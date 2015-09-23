@@ -17,10 +17,11 @@
 
 ClassImp(TFrame)
 
-//______________________________________________________________________________
-//
-// a TFrame is a TWbox for drawing histogram frames.
-//
+/** \class TFrame
+Define a Frame.
+
+A `TFrame` is a `TWbox` for drawing histogram frames.
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Frame default constructor.

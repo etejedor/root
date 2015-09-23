@@ -1,9 +1,6 @@
 ############################################################################
 # CMakeLists.txt file for building ROOT core/utils package
 ############################################################################
-ROOT_USE_PACKAGE(core/metautils)
-ROOT_USE_PACKAGE(io/io)
-
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/../metautils/src ${LLVM_INCLUDE_DIRS} ${CLING_INCLUDE_DIRS})
 if(NOT MSVC)
@@ -41,6 +38,8 @@ ROOT_EXECUTABLE(rootcling src/LinkdefReader.cxx src/DictSelectionReader.cxx
 
 add_dependencies(rootcling CLING LLVMRES)
 
+ROOT_EXECUTABLE(rlibmap src/rlibmap.cxx)
+
 if(WIN32)
   add_custom_command(TARGET rootcling POST_BUILD
                      COMMAND copy /y rootcling.exe rootcint.exe
@@ -53,7 +52,7 @@ else()
                      WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 endif()
 set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES
-                         "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rootcint;${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/genreflex")
+                         "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rootcint;${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/genreflex;${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rlibmap")
 
 if(CMAKE_HOST_UNIX)
   install(CODE "execute_process(COMMAND ln -f rootcling rootcint WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})" COMPONENT applications)
@@ -61,6 +60,7 @@ if(CMAKE_HOST_UNIX)
 else()
   install(PROGRAMS  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rootcint
                     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/genreflex
+                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rlibmap
                     DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT applications)
 endif()
 
@@ -111,6 +111,7 @@ foreach(file  Interpreter/DynamicExprInfo.h
               Interpreter/Interpreter.h
               Interpreter/InvocationOptions.h
               Interpreter/RuntimeException.h
+              Interpreter/RuntimePrintValue.h
               Interpreter/RuntimeUniverse.h
               Interpreter/Value.h)
   get_filename_component(path ${file} PATH)
