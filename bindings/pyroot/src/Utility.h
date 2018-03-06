@@ -1,8 +1,5 @@
-// @(#)root/pyroot:$Id$
-// Author: Wim Lavrijsen, Apr 2004
-
-#ifndef PYROOT_UTILITY_H
-#define PYROOT_UTILITY_H
+#ifndef CPYCPPYY_UTILITY_H
+#define CPYCPPYY_UTILITY_H
 
 // Standard
 #include <map>
@@ -10,78 +7,77 @@
 #include <vector>
 
 
-namespace PyROOT {
+namespace CPyCppyy {
 
-   class PyCallable;
+class PyCallable;
 
-   R__EXTERN dict_lookup_func gDictLookupOrg;
-   R__EXTERN Bool_t gDictLookupActive;
+extern dict_lookup_func gDictLookupOrg;
+extern bool gDictLookupActive;
 
 // additional converter functions
-   ULong_t PyLongOrInt_AsULong( PyObject* pyobject );
-   ULong64_t PyLongOrInt_AsULong64( PyObject* pyobject );
+unsigned long PyLongOrInt_AsULong(PyObject* pyobject);
+ULong64_t     PyLongOrInt_AsULong64(PyObject* pyobject);
 
-   namespace Utility {
+namespace Utility {
 
-   // convenience functions for adding methods to classes
-      Bool_t AddToClass( PyObject* pyclass, const char* label, PyCFunction cfunc,
-                         int flags = METH_VARARGS );
-      Bool_t AddToClass( PyObject* pyclass, const char* label, const char* func );
-      Bool_t AddToClass( PyObject* pyclass, const char* label, PyCallable* pyfunc );
+// convenience functions for adding methods to classes
+bool AddToClass(PyObject* pyclass, const char* label, PyCFunction cfunc,
+    int flags = METH_VARARGS);
+bool AddToClass(PyObject* pyclass, const char* label, const char* func);
+bool AddToClass(PyObject* pyclass, const char* label, PyCallable* pyfunc);
 
-      Bool_t AddUsingToClass( PyObject* pyclass, const char* method );
+bool AddUsingToClass(PyObject* pyclass, const char* method);
 
-      // helpers for dynamically constructing binary operators
-      Bool_t AddBinaryOperator( PyObject* left, PyObject* right,
-         const char* op, const char* label, const char* alt_label = NULL );
-      Bool_t AddBinaryOperator( PyObject* pyclass,
-         const char* op, const char* label, const char* alt_label = NULL );
-      Bool_t AddBinaryOperator( PyObject* pyclass, const std::string& lcname, const std::string& rcname,
-         const char* op, const char* label, const char* alt_label = NULL );
+// helpers for dynamically constructing binary operators
+bool AddBinaryOperator(PyObject* left, PyObject* right,
+    const char* op, const char* label, const char* alt_label = nullptr);
+bool AddBinaryOperator(PyObject* pyclass,
+    const char* op, const char* label, const char* alt_label = nullptr);
+bool AddBinaryOperator(PyObject* pyclass, const std::string& lcname, const std::string& rcname,
+    const char* op, const char* label, const char* alt_label = nullptr);
 
-   // helper for template classes and methods
-      PyObject* BuildTemplateName( PyObject* pyname, PyObject* args, int argoff );
+// helper for template classes and methods
+std::string ConstructTemplateArgs(PyObject* pyname, PyObject* args, int argoff);
 
-   // initialize proxy type objects
-      Bool_t InitProxy( PyObject* module, PyTypeObject* pytype, const char* name );
+// initialize proxy type objects
+bool InitProxy(PyObject* module, PyTypeObject* pytype, const char* name);
 
-   // retrieve the memory buffer from pyobject, return buflength, tc (optional) is python
-   // array.array type code, size is type size, buf will point to buffer, and if check is
-   // true, some heuristics will be applied to check buffer compatibility with the type
-      int GetBuffer( PyObject* pyobject, char tc, int size, void*& buf, Bool_t check = kTRUE );
+// retrieve the memory buffer from pyobject, return buflength, tc (optional) is python
+// array.array type code, size is type size, buf will point to buffer, and if check is
+// true, some heuristics will be applied to check buffer compatibility with the type
+int GetBuffer(PyObject* pyobject, char tc, int size, void*& buf, bool check = true);
 
-   // data/operator mappings
-      std::string MapOperatorName( const std::string& name, Bool_t bTakesParames );
+// data/operator mappings
+std::string MapOperatorName(const std::string& name, bool bTakesParames);
 
-   // meta information
-      const std::string Compound( const std::string& name );
-      Py_ssize_t ArraySize( const std::string& name );
-      const std::string ClassName( PyObject* pyobj );
+// meta information
+const std::string Compound(const std::string& name);
+Py_ssize_t ArraySize(const std::string& name);
+std::string ClassName(PyObject* pyobj);
 
-   // CINT integration
-      void ErrMsgCallback( char* msg );
-      void ErrMsgHandler( int level, Bool_t abort, const char* location, const char* msg );
+// for threading: save call to PyErr_Occurred()
+PyObject* PyErr_Occurred_WithGIL();
 
-   // create a wrapper for the python function with Cling; returns function pointer
-      void* CreateWrapperMethod( PyObject* pyfunc, Long_t user,
-         const char* retType, const std::vector<std::string>& signature, const char* callback );
+// helpers for collecting/maintaining python exception data
+struct PyError_t {
+    PyError_t() { fType = fValue = fTrace = 0; }
 
-   // for threading: save call to PyErr_Occurred()
-      PyObject* PyErr_Occurred_WithGIL();
+    static void Clear(PyError_t& e)
+    {
+    // Remove exception information.
+        Py_XDECREF(e.fType); Py_XDECREF(e.fValue); Py_XDECREF(e.fTrace);
+        e.fType = e.fValue = e.fTrace = 0;
+    }
 
-   // for GUI driving; install/remove event callback
-      PyObject* InstallGUIEventInputHook();
-      PyObject* RemoveGUIEventInputHook();
+    PyObject *fType, *fValue, *fTrace;
+};
 
-   } // namespace Utility
+size_t FetchError(std::vector<PyError_t>&);
+void SetDetailedException(
+    std::vector<PyError_t>& errors /* clears */, PyObject* topmsg /* steals ref */, PyObject* defexc);
 
-   class PyGILRAII {
-      PyGILState_STATE m_GILState;
-   public:
-      PyGILRAII():m_GILState(PyGILState_Ensure()){}
-      ~PyGILRAII(){PyGILState_Release(m_GILState);}
-   };
+} // namespace Utility
 
-} // namespace PyROOT
+} // namespace CPyCppyy
 
-#endif // !PYROOT_UTILITY_H
+#endif // !CPYCPPYY_UTILITY_H

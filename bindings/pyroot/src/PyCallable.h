@@ -1,41 +1,39 @@
-// @(#)root/pyroot:$Id$
-// Author: Wim Lavrijsen, Aug 2004
-
-#ifndef PYROOT_PYCALLABLE_H
-#define PYROOT_PYCALLABLE_H
+#ifndef CPYCPPYY_PYCALLABLE_H
+#define CPYCPPYY_PYCALLABLE_H
 
 // Bindings
-#include "TCallContext.h"
+#include "CallContext.h"
 
 
-namespace PyROOT {
+namespace CPyCppyy {
 
-   class ObjectProxy;
+class CPPInstance;
 
-   class PyCallable {
-   public:
-      virtual ~PyCallable() {}
+class PyCallable {
+public:
+    virtual ~PyCallable() {}
 
-   public:
-      virtual PyObject* GetSignature() = 0;
-      virtual PyObject* GetPrototype() = 0;
-      virtual PyObject* GetDocString() { return GetPrototype(); }
+public:
+    virtual PyObject* GetSignature(bool show_formalargs = true) = 0;
+    virtual PyObject* GetPrototype(bool show_formalargs = true) = 0;
+    virtual PyObject* GetDocString() { return GetPrototype(); }
 
-      virtual Int_t GetPriority() = 0;
+    virtual int GetPriority() = 0;
 
-      virtual Int_t GetMaxArgs() = 0;
-      virtual PyObject* GetCoVarNames() = 0;
-      virtual PyObject* GetArgDefault( Int_t /* iarg */ )  = 0;
+    virtual int GetMaxArgs() = 0;
+    virtual PyObject* GetCoVarNames() = 0;
+    virtual PyObject* GetArgDefault(int /* iarg */) = 0;
 
-      virtual PyObject* GetScopeProxy()  = 0;
+    virtual PyObject* GetScopeProxy() = 0;
+    virtual Cppyy::TCppFuncAddr_t GetFunctionAddress() = 0;
 
-      virtual PyCallable* Clone() = 0;
+    virtual PyCallable* Clone() = 0;
 
-   public:
-      virtual PyObject* Call(
-         ObjectProxy*& self, PyObject* args, PyObject* kwds, TCallContext* ctxt = 0 ) = 0;
-   };
+public:
+    virtual PyObject* Call(
+        CPPInstance*& self, PyObject* args, PyObject* kwds, CallContext* ctxt = nullptr) = 0;
+};
 
-} // namespace PyROOT
+} // namespace CPyCppyy
 
-#endif // !PYROOT_PYCALLABLE_H
+#endif // !CPYCPPYY_PYCALLABLE_H

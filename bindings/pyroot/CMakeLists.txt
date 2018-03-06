@@ -16,9 +16,9 @@ endif()
 ROOT_STANDARD_LIBRARY_PACKAGE(PyROOT
                               NO_INSTALL_HEADERS
                               DICTIONARY_OPTIONS "-writeEmptyRootPCM"
-                              LIBRARIES Core Net Tree MathCore Rint ${PYTHON_LIBRARIES}
+                              LIBRARIES Core Net Tree MathCore Rint ${PYTHON_LIBRARIES} dl
                               DEPENDENCIES Core MathCore Net Tree Rint)
-ROOT_LINKER_LIBRARY(JupyROOT ../JupyROOT/src/*.cxx DEPENDENCIES Core CMAKENOEXPORT)
+ROOT_LINKER_LIBRARY(JupyROOT ../JupyROOT/src/*.cxx DEPENDENCIES Core)
 
 if(MSVC)
   add_custom_command(TARGET PyROOT POST_BUILD
@@ -54,6 +54,15 @@ file(COPY ${JupyROOTDirName} DESTINATION ${localruntimedir})
 set( JsMVADirName "JsMVA")
 install (DIRECTORY ${JsMVADirName} DESTINATION ${runtimedir})
 file(COPY ${JsMVADirName} DESTINATION ${localruntimedir})
+
+set(CppyyDirName "cppyy")
+install (DIRECTORY ${CppyyDirName} DESTINATION ${runtimedir})
+file(COPY ${CppyyDirName} DESTINATION ${localruntimedir})
+
+set(CppyyBackendDirName "cppyy_backend")
+install (DIRECTORY ${CppyyBackendDirName} DESTINATION ${runtimedir})
+file(COPY ${CppyyBackendDirName} DESTINATION ${localruntimedir})
+
 
 #---Install headers----------------------------------------------------------
 ROOT_INSTALL_HEADERS()

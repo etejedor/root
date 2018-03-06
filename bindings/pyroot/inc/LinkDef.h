@@ -7,13 +7,8 @@
 #pragma link C++ class TPython;
 #pragma link C++ class TPyReturn;
 #pragma link C++ class TPyArg;
-#pragma link C++ class TPyDispatcher;
-#pragma link C++ class TPySelector;
-#pragma link C++ class TPyMultiGenFunction;
-#pragma link C++ class TPyMultiGradFunction;
 
-#pragma link C++ namespace PyROOT;
-#pragma link C++ class PyROOT::TPyException;
-#pragma link C++ class PyROOT::TPyROOTApplication;
+#pragma link C++ namespace CPyCppyy;
+#pragma link C++ class CPyCppyy::TPyException;
 
 #endif
