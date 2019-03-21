@@ -47,6 +47,7 @@ public:                                                                      \
 class name##RefConverter : public Converter {                                \
 public:                                                                      \
     virtual bool SetArg(PyObject*, Parameter&, CallContext* = nullptr);      \
+    virtual PyObject* FromMemory(void*);                                     \
 };
 
 #define CPPYY_DECLARE_ARRAY_CONVERTER(name)                                  \
@@ -165,18 +166,20 @@ public:
 
 class InstanceRefConverter : public Converter  {
 public:
-    InstanceRefConverter(Cppyy::TCppType_t klass) : fClass(klass) {}
+    InstanceRefConverter(Cppyy::TCppType_t klass, bool isConst) :
+        fClass(klass), fIsConst(isConst) {}
 
 public:
     virtual bool SetArg(PyObject*, Parameter&, CallContext* = nullptr);
 
 protected:
     Cppyy::TCppType_t fClass;
+    bool fIsConst;
 };
 
 class InstanceMoveConverter : public InstanceRefConverter  {
 public:
-    using InstanceRefConverter::InstanceRefConverter;
+    InstanceMoveConverter(Cppyy::TCppType_t klass) : InstanceRefConverter(klass, true) {}
     virtual bool SetArg(PyObject*, Parameter&, CallContext* = nullptr);
 };
 
@@ -293,6 +296,7 @@ public:
 
 public:
     virtual bool SetArg(PyObject*, Parameter&, CallContext* = nullptr);
+    virtual PyObject* FromMemory(void* address);
 
 protected:
     std::string fRetType;

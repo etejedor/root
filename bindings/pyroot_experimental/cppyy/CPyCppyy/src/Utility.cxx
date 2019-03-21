@@ -467,9 +467,9 @@ std::string CPyCppyy::Utility::ConstructTemplateArgs(PyObject* pyname, PyObject*
             return "";
         }
 
-    // add a comma, as needed
+    // add a comma, as needed (no space as internally, final names don't have them)
         if (i != nArgs-1)
-            tmpl_name << ", ";
+            tmpl_name << ",";
     }
 
 // close template name
@@ -800,7 +800,6 @@ bool CPyCppyy::Utility::IncludePython()
             "#endif\n"
             "#include \"Python.h\"\n"
        // the following really should live in a header ...
-            "extern \"C\" void* cppyy_create_converter(const char*, long* dims);\n"
             "namespace CPyCppyy {\n"
             "struct Parameter; struct CallContext;\n"
             "class Converter {\n"
@@ -810,6 +809,7 @@ bool CPyCppyy::Utility::IncludePython()
             "  virtual PyObject* FromMemory(void* address);\n"
             "  virtual bool ToMemory(PyObject* value, void* address);\n"
             "};\n"
+            "Converter* CreateConverter(const std::string& fullType, long* dims = nullptr);\n"
        // and this lives in a header, but isn't accessible ...
             "#ifndef CPYCPPYY_TPyException\n"
             "class TPyException : public std::exception {\n"

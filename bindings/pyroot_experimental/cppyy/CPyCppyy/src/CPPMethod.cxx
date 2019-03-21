@@ -146,7 +146,7 @@ bool CPyCppyy::CPPMethod::InitConverters_()
 }
 
 //----------------------------------------------------------------------------
-bool CPyCppyy::CPPMethod::InitExecutor_(Executor*& executor, CallContext* ctxt)
+bool CPyCppyy::CPPMethod::InitExecutor_(Executor*& executor, CallContext* /* ctxt */)
 {
 // install executor conform to the return type
     executor = CreateExecutor(
@@ -445,8 +445,8 @@ PyObject* CPyCppyy::CPPMethod::PreProcessArgs(
              (Cppyy::IsSubtype(pyobj->ObjectIsA(), fScope)))) { // matching types
 
         // reset self
+            Py_INCREF(pyobj);      // corresponding Py_DECREF is in CPPOverload
             self = pyobj;
-            Py_INCREF(self);       // corresponding Py_DECREF is in CPPOverload
 
         // offset args by 1 (new ref)
             return PyTuple_GetSlice(args, 1, PyTuple_GET_SIZE(args));
@@ -479,16 +479,31 @@ bool CPyCppyy::CPPMethod::ConvertAndSetArgs(PyObject* args, CallContext* ctxt)
     }
 
 // convert the arguments to the method call array
+    bool isOK = true;
     Parameter* cppArgs = ctxt->GetArgs(argc);
     for (int i = 0; i < (int)argc; ++i) {
-        if (!fConverters[i]->SetArg(
-                PyTuple_GET_ITEM(args, i), cppArgs[i], ctxt)) {
-            SetPyError_(CPyCppyy_PyUnicode_FromFormat("could not convert argument %d", i+1));
-            return false;
+        if (!fConverters[i]->SetArg(PyTuple_GET_ITEM(args, i), cppArgs[i], ctxt)) {
+            if (!HaveImplicit(ctxt))
+                SetPyError_(CPyCppyy_PyUnicode_FromFormat("could not convert argument %d", i+1));
+            isOK = false;
+            break;
         }
     }
 
-    return true;
+    if (!isOK && HaveImplicit(ctxt)) {
+    // try second round, but this time allowing for implicit conversions
+        isOK = true;
+        ctxt->fFlags |= CallContext::kAllowImplicit;
+        for (int i = 0; i < (int)argc; ++i) {
+            if (!fConverters[i]->SetArg(PyTuple_GET_ITEM(args, i), cppArgs[i], ctxt)) {
+                SetPyError_(CPyCppyy_PyUnicode_FromFormat("could not convert argument %d", i+1));
+                isOK = false;
+                break;
+            }
+        }
+    }
+
+    return isOK;
 }
 
 //----------------------------------------------------------------------------
