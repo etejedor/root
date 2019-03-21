@@ -3,11 +3,11 @@ from pytest import raises
 from .support import setup_make, pylong
 
 currpath = py.path.local(__file__).dirpath()
-test_dct = str(currpath.join("advancedcppDict.so"))
+test_dct = str(currpath.join("advancedcppDict"))
 
 def setup_module(mod):
-    setup_make("advancedcppDict.so")
-    setup_make("advancedcpp2Dict.so")
+    setup_make("advancedcpp")
+    setup_make("advancedcpp2")
 
 
 class TestADVANCEDCPP:
@@ -159,7 +159,7 @@ class TestADVANCEDCPP:
         import cppyy
         gbl = cppyy.gbl
 
-        lib2 = cppyy.load_reflection_info("advancedcpp2Dict.so")
+        lib2 = cppyy.load_reflection_info("advancedcpp2Dict")
 
         assert gbl.a_ns      is gbl.a_ns
         assert gbl.a_ns.d_ns is gbl.a_ns.d_ns
@@ -610,7 +610,7 @@ class TestADVANCEDCPP:
         assert f(3.) == 3.
         assert type(f(4.)) == type(4.)
 
-    def test17_assign_to_return_byref( self ):
+    def test17_assign_to_return_byref(self):
         """Test assignment to an instance returned by reference"""
 
         from cppyy import gbl
@@ -757,3 +757,11 @@ class TestADVANCEDCPP:
             s = cppyy.gbl.std.ostringstream()
             tst[0].__lshiftc__(s, tst[0]())
             assert s.str() == tst[1]
+
+    def test26_using_directive(self):
+        """Test using directive in namespaces"""
+
+        import cppyy
+
+        assert cppyy.gbl.UserDirs.foo() == cppyy.gbl.UsedSpace1.foo()
+        assert cppyy.gbl.UserDirs.bar() == cppyy.gbl.UsedSpace2.bar()

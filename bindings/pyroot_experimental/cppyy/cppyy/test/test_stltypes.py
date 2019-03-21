@@ -10,10 +10,10 @@ except ImportError:
 
 
 currpath = py.path.local(__file__).dirpath()
-test_dct = str(currpath.join("stltypesDict.so"))
+test_dct = str(currpath.join("stltypesDict"))
 
 def setup_module(mod):
-    setup_make("stltypesDict.so")
+    setup_make("stltypes")
 
 
 class TestSTLVECTOR:
@@ -93,11 +93,11 @@ class TestSTLVECTOR:
         assert tv2 is tv3
 
         v = tv3()
-        assert hasattr(v, 'size' )
-        assert hasattr(v, 'push_back' )
-        assert hasattr(v, '__getitem__' )
-        assert hasattr(v, 'begin' )
-        assert hasattr(v, 'end' )
+        assert hasattr(v, 'size')
+        assert hasattr(v, 'push_back')
+        assert hasattr(v, '__getitem__')
+        assert hasattr(v, 'begin')
+        assert hasattr(v, 'end')
 
         for i in range(self.N):
             v.push_back(cppyy.gbl.just_a_class())
@@ -376,7 +376,7 @@ class TestSTLLIST:
             #-----
             a = tl1()
             for i in range(self.N):
-                a.push_back( i )
+                a.push_back(i)
 
             assert len(a) == self.N
             assert 11 < self.N
@@ -498,14 +498,24 @@ class TestSTLMAP:
         """Test the iterator protocol mapping for an STL like class"""
 
         import cppyy
-        stl_like_class = cppyy.gbl.stl_like_class
 
-        a = stl_like_class(int)()
+        a = cppyy.gbl.stl_like_class(int)()
         assert len(a) == 4
         for i, j in enumerate(a):
             assert i == j
 
         assert i == len(a)-1
+
+        for cls in [cppyy.gbl.stl_like_class2, cppyy.gbl.stl_like_class3]:
+            b = cls[float, 2]()
+            b[0] = 27; b[1] = 42
+            limit = len(b)+1
+            for x in b:
+                limit -= 1
+                assert limit and "iterated too far!"
+                assert x in [27, 42]
+            assert x == 42
+            del x, b
 
 
 class TestSTLITERATOR:

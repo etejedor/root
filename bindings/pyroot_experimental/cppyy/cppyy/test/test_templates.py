@@ -3,10 +3,10 @@ from pytest import raises
 from .support import setup_make, pylong
 
 currpath = py.path.local(__file__).dirpath()
-test_dct = str(currpath.join("templatesDict.so"))
+test_dct = str(currpath.join("templatesDict"))
 
 def setup_module(mod):
-    setup_make("templatesDict.so")
+    setup_make("templates")
 
 
 class TestTEMPLATES:
@@ -293,7 +293,6 @@ class TestTEMPLATED_TYPEDEFS:
         assert tct['long double', dum, 4] is tct[in_type, dum, 4]
         assert tct['double', dum, 4] is not tct[in_type, dum, 4]
 
-
     def test04_template_aliases(self):
         """Access to templates made available with 'using'"""
 
@@ -309,3 +308,29 @@ class TestTEMPLATED_TYPEDEFS:
         iavec = cppyy.gbl.IA_vector["float"]()
         iavec += range(10)
         assert iavec[5] == 5
+
+      # with variadic template
+        if cppyy.gbl.gInterpreter.ProcessLine("__cplusplus;") > 201402:
+            assert cppyy.gbl.using_problem.matryoshka[int, 3].type
+            assert cppyy.gbl.using_problem.matryoshka[int, 3, 4].type
+            assert cppyy.gbl.using_problem.make_vector[int , 3]
+            assert cppyy.gbl.using_problem.make_vector[int , 3]().m_val == 3
+            assert cppyy.gbl.using_problem.make_vector[int , 4]().m_val == 4
+
+    def test05_rvalue_templates(self):
+        """Use of a template with r-values; should accept builtin types"""
+
+        import cppyy
+
+        is_valid = cppyy.gbl.T_WithRValue.is_valid
+
+      # bit of regression testing
+        assert is_valid['int&'](3)
+        assert is_valid(3)
+        assert is_valid['int'](3)      # used to crash
+
+      # actual method calls
+        assert is_valid[int](1)
+        assert not is_valid(0)
+        assert is_valid(1.)
+        assert not is_valid(0.)

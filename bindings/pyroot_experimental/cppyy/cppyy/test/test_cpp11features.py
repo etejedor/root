@@ -10,10 +10,10 @@ except ImportError:
 
 
 currpath = py.path.local(__file__).dirpath()
-test_dct = str(currpath.join("cpp11featuresDict.so"))
+test_dct = str(currpath.join("cpp11featuresDict"))
 
 def setup_module(mod):
-    setup_make("cpp11featuresDict.so")
+    setup_make("cpp11features")
 
 class TestCPP11FEATURES:
     def setup_class(cls):
@@ -138,17 +138,18 @@ class TestCPP11FEATURES:
         assert cppyy.gbl.gMyLambda(2)  == 42
         assert cppyy.gbl.gMyLambda(40) == 80
 
-        cppyy.cppdef("auto gime_a_lambda1() { return []() { return 42; }; }")
-        l1 = cppyy.gbl.gime_a_lambda1()
-        assert l1
-        assert l1() == 42
+        if cppyy.gbl.gInterpreter.ProcessLine("__cplusplus;") >= 201402:
+            cppyy.cppdef("auto gime_a_lambda1() { return []() { return 42; }; }")
+            l1 = cppyy.gbl.gime_a_lambda1()
+            assert l1
+            assert l1() == 42
 
-        cppyy.cppdef("auto gime_a_lambda2() { int a = 4; return [a](int b) { return 42+a+b; }; }")
-        l2 = cppyy.gbl.gime_a_lambda2()
-        assert l2
-        assert l2(2) == 48
+            cppyy.cppdef("auto gime_a_lambda2() { int a = 4; return [a](int b) { return 42+a+b; }; }")
+            l2 = cppyy.gbl.gime_a_lambda2()
+            assert l2
+            assert l2(2) == 48
 
-        cppyy.cppdef("auto gime_a_lambda3(int a ) { return [a](int b) { return 42+a+b; }; }")
-        l3 = cppyy.gbl.gime_a_lambda3(4)
-        assert l3
-        assert l3(2) == 48
+            cppyy.cppdef("auto gime_a_lambda3(int a ) { return [a](int b) { return 42+a+b; }; }")
+            l3 = cppyy.gbl.gime_a_lambda3(4)
+            assert l3
+            assert l3(2) == 48
