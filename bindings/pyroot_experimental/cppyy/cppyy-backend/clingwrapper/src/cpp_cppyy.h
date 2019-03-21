@@ -117,6 +117,10 @@ namespace Cppyy {
     RPY_EXPORTED
     void GetAllCppNames(TCppScope_t scope, std::set<std::string>& cppnames);
 
+// namespace reflection information ------------------------------------------
+    RPY_EXPORTED
+    std::vector<TCppScope_t> GetUsingNamespaces(TCppScope_t);
+
 // class reflection information ----------------------------------------------
     RPY_EXPORTED
     std::string GetFinalName(TCppType_t type);
@@ -168,7 +172,7 @@ namespace Cppyy {
     RPY_EXPORTED
     std::string GetMethodArgDefault(TCppMethod_t, TCppIndex_t iarg);
     RPY_EXPORTED
-    std::string GetMethodSignature(TCppMethod_t, bool show_formalargs);
+    std::string GetMethodSignature(TCppMethod_t, bool show_formalargs, TCppIndex_t maxargs = (TCppIndex_t)-1);
     RPY_EXPORTED
     std::string GetMethodPrototype(TCppScope_t scope, TCppMethod_t, bool show_formalargs);
     RPY_EXPORTED
@@ -225,12 +229,5 @@ namespace Cppyy {
     int  GetDimensionSize(TCppScope_t scope, TCppIndex_t idata, int dimension);
 
 } // namespace Cppyy
-
-extern "C" {
-    RPY_EXPORTED
-    void cppyy_set_converter_creator(void* (*)(const char*, long*));
-    RPY_EXPORTED
-    void* cppyy_create_converter(const char* type_name, long* dims);
-}
 
 #endif // !CPYCPPYY_CPPYY_H
