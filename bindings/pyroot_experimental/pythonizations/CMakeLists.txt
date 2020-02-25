@@ -75,6 +75,19 @@ set(cpp_sources
     ${PYROOT_EXTRA_SOURCE}
 )
 
+ROOT_STANDARD_LIBRARY_PACKAGE(ROOTTPyFitFunction
+  HEADERS
+    TPyFitFunction.h
+  SOURCES
+    src/TPyFitFunction.cxx
+  DICTIONARY_OPTIONS
+    -writeEmptyRootPCM
+  DEPENDENCIES
+    Core
+    MathCore
+    cppyy
+)
+
 set(ROOTDirName python/ROOT)
 set(ROOT_headers inc)
 
@@ -84,8 +97,8 @@ target_include_directories(ROOTPythonizations PRIVATE ${ROOT_headers} ${PYTHON_I
 file(COPY ${ROOTDirName} DESTINATION ${py_localruntimedir})
 install(DIRECTORY ${ROOTDirName} DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-# Copy headers inside build_dir/include/Pythonizations
-file(COPY ${ROOT_headers}/ DESTINATION ${CMAKE_BINARY_DIR}/include/ROOT)
+# Copy headers inside build_dir/include
+file(COPY ${ROOT_headers}/ DESTINATION ${CMAKE_BINARY_DIR}/include)
 
 foreach(py_source ${py_sources})
   install(CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} -m py_compile ${d}/${py_source})")
