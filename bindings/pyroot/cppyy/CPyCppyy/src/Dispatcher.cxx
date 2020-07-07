@@ -177,8 +177,8 @@ bool CPyCppyy::InsertDispatcher(CPPScope* klass, PyObject* dct)
              << "  " << derivedName << "(PyObject* pyobj) : m_self(pyobj) {}\n";
     if (has_default || has_cctor || !has_constructors) {
         code << "  " << derivedName << "(const " << derivedName << "& other) : ";
-        if (has_cctor)
-            code << baseName << "(other), ";
+        //if (has_cctor)
+        //    code << baseName << "(other), ";
         code << "m_self(other.m_self, this) {}\n";
     }
 
