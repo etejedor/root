@@ -10,6 +10,9 @@
 # For the list of contributors see $ROOTSYS/README/CREDITS.                    #
 ################################################################################
 
+import ROOT
+from .CppWorkflow import CppWorkflow
+
 class ComputationGraphGenerator(object):
     """
     Class that generates a callable to parse a DistRDF graph.
@@ -72,80 +75,54 @@ class ComputationGraphGenerator(object):
         # Prune the graph to check user references
         self.headnode.graph_prune()
 
-        def generate_computation_graph(node_cpp, range_id, node_py=None, rdf_range=None):
+        def generate_computation_graph(cpp_headnode, range_id):
             """
-            The callable that recurses through the DistRDF nodes and executes
-            operations from a starting (PyROOT) RDF node.
+            The callable that traverses the DistRDF graph nodes, generates the
+            code to create the same graph in C++, compiles it and runs it.
+            If the workflow contains an instant action, the event loop will
+            be already triggered by this function.
 
             Args:
-                node_cpp (ROOT.RDF.RNode): The current state's ROOT CPP node.
-                    Initially this is the PyROOT RDataFrame object.
-                range_id (int): The id of the current range. Needed to assign a
-                    file name to a partial Snapshot if it was requested.
-                node_py (optional): The current state's DistRDF node. If `None`,
-                    it takes the value of `self.headnode`.
-                rdf_range (optional): The current range of the RDataFrame to run
-                    the analysis on. This is an helper parameter for the
-                    analysis in a distributed environment.
+                cpp_headnode (ROOT.RDF.RNode): The main RDataFrame node.
+                range_id (int): Id of the current range. Needed to assign a name to a
+                    partial Snapshot output file.
 
             Returns:
-                list: A list of :obj:`ROOT.RResultPtr` objects in DFS order of
-                their corresponding actions in the graph.
+                list: A list of results coming from the actions in the graph.
             """
-            return_vals = []
+            py_headnode = self.headnode
+            cpp_workflow = CppWorkflow()
+            parent_idx = 0
 
-            if rdf_range:
-                parent_node = node_cpp.Range(rdf_range.start, rdf_range.end)
-            else:
-                parent_node = node_cpp
+            # Recurse over children nodes and get store their results
+            for py_node in py_headnode.children:
+                explore_graph(py_node, cpp_workflow, range_id, parent_idx) 
 
-            if not node_py:
-                # In the first recursive state, just set the
-                # current DistRDF node as the head node
-                node_py = self.headnode
-            else:
-                # Execute the current operation using the output of the parent
-                # node (node_cpp)
-                RDFOperation = getattr(node_cpp, node_py.operation.name)
-                operation = node_py.operation
+            print(cpp_workflow)
+            results = cpp_workflow.execute(ROOT.RDF.AsRNode(cpp_headnode))
+            print("RESULTS", results)
+            for elem in results:
+                print(elem)
 
-                if operation.name == "Snapshot":
-                    # Retrieve filename and append range boundaries
-                    filename = operation.args[1].partition(".root")[0]
-                    path_with_range = "{}_{}.root".format(filename, range_id)
-                    # Create a partial snapshot on the current range
-                    operation.args[1] = path_with_range
-                pyroot_node = RDFOperation(*operation.args,
-                                           **operation.kwargs)
+            return results
 
-                # The result is a pyroot object which is stored together with
-                # the pyrdf node. This binds the pyroot object lifetime to the
-                # pyrdf node, so both nodes will be kept alive as long as there
-                # is a valid reference poiting to the pyrdf node.
-                node_py.pyroot_node = pyroot_node
+        def explore_graph(py_node, cpp_workflow, range_id, parent_idx):
+            """
+            Recursively traverses the DistRDF graph nodes in DFS order and,
+            for each of them, adds a new node to the C++ workflow.
 
-                # The new pyroot_node becomes the parent_node for the next
-                # recursive call
-                parent_node = pyroot_node
+            Args:
+                py_node (Node): Object that contains the information to add the
+                    corresponding node to the C++ workflow.
+                cpp_workflow (CppWorkflow): Object that encapsulates the creation
+                    of the C++ workflow graph.
+                range_id (int): Id of the current range. Needed to assign a name to a
+                    partial Snapshot output file.
+                parent_idx (int): Index of the parent node in the C++ workflow.
+            """
+            node_idx = cpp_workflow.add_node(py_node.operation, range_id, parent_idx)
 
-                if (node_py.operation.is_action() or
-                        node_py.operation.is_instant_action()):
-                    # Collect all action nodes in order to return them
-                    # If it's a distributed snapshot return only path to
-                    # the file with the partial snapshot
-                    if rdf_range and operation.name == "Snapshot":
-                        return_vals.append([path_with_range])
-                    else:
-                        return_vals.append(pyroot_node)
-
-            for n in node_py.children:
-                # Recurse through children and get their output
-                prev_vals = generate_computation_graph(
-                    parent_node, range_id, node_py=n, rdf_range=rdf_range)
-
-                # Attach the output of the children node
-                return_vals.extend(prev_vals)
-
-            return return_vals
+            for child_node in py_node.children:
+                explore_graph(child_node, cpp_workflow, range_id, node_idx)
 
         return generate_computation_graph
